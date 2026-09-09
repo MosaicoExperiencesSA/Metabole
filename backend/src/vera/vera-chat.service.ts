@@ -18,13 +18,13 @@ import { diceDiFermarsi, leggiCortesia, rispostaCortesia } from './cortesie';
 import { TIPO_PROMEMORIA } from '../clients/promemoria-supervisione';
 import { leggiDigiunoDettato } from './digiuno-dettato';
 import { aGiorno, giornoItaliano } from '../common/date-only';
-import { avvisaGiornoRiscritto, codaPerChiHaSalvato } from '../menu/avviso-giorno-riscritto';
+import { type Esito, avvisaGiornoRiscritto, avvisaGiorniRiscritti, codaPerChiHaSalvato } from '../menu/avviso-giorno-riscritto';
 import { ordinaPerSomiglianza } from '../menu/ordine-ricerca-ricette';
 import { PushService } from '../notifications/push.service';
 import { chiaveAlimento, combaciaAlimento, normalizza } from '../common/nomi-alimento';
 import { spezzaTagAlimenti } from '../common/tag-alimenti';
 import { filtroPerimetroSuCliente, filtroPerimetroSuClienteConPiano, perimetroClienti } from '../common/perimetro-clienti';
-import { filtroProfiloConPianoAttivo } from '../common/piano-attivo';
+import { chiRiceveIMenu, filtroProfiloConPianoAttivo } from '../common/piano-attivo';
 import { etichettaSlot } from '../common/slot-pasto';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { expandExclusion } from '../menu/exclusions';
@@ -1733,6 +1733,16 @@ export class VeraChatService {
           'oppure procediamo lo stesso.',
       );
     }
+    /**
+     * ⛔ **I GIORNI GIÀ PREPARATI SI RACCONTANO PRIMA DEL SÌ** — 9/9. Era l'unica delle cinque porte
+     * che il conto lo diceva solo **dopo** aver scritto: fino all'8 non cambiava niente (le giornate
+     * già aperte non si toccavano), da oggi sì. ⚠️ Vale solo per i divieti: una sostituzione non
+     * cancella giornate, e una frase sui menu rifatti lì sarebbe falsa.
+     */
+    if (intento.tipo === 'restrizione') {
+      const giorni = await this.anteprimaDeiVietati(clienteId, termini);
+      if (giorni) righe.push(giorni);
+    }
     if (conflitto) righe.push(`⚠️ ${conflitto} Procedo lo stesso?`);
     else righe.push('Confermi?');
 
@@ -1833,6 +1843,42 @@ export class VeraChatService {
   }
 
   /**
+   * ⛔ **LA CODA DI «TOGLI LO SPUNTINO», IN UN POSTO SOLO** — anteprima e scrittura la chiedono qui.
+   *
+   * ⚠️ Erano due righe uguali in due punti, e il 9/9 il guardiano del piano fermo avrebbe dovuto
+   * entrare in tutt'e due: una sola delle due l'avrebbe fatto promettere all'anteprima quello che la
+   * scrittura poi rifiutava. È lo stesso motivo per cui `codaProteine` esiste da agosto.
+   */
+  private async codaPasti(clientId: string, slots: Spuntino[], azione: 'togli' | 'rimetti'): Promise<CodaDaRifare> {
+    const { tutti, colpito } = await this.giorniPastiDaRifare(clientId, slots, azione);
+    return this.codaSeIlMotoreLaRicompone(clientId, () => codaDaRifare(tutti, colpito, { unaPersonaHaLetto: true }));
+  }
+
+  /**
+   * ⛔ **CANCELLARE NON È RIFARE — e questo è il guardiano che lo ricorda alle porte di Vera** (9/9,
+   * trovato da una revisione avversariale poche ore dopo aver aperto le cinque porte).
+   *
+   * Le cinque porte cancellano e basta: la ricomposizione la fa il motore al suo giro, e `VeraModule`
+   * sta fuori da `MenuModule` di proposito. Ma `deliverIfEligible` compone **solo se il percorso lo
+   * permette**: piano finito, o messo in pausa a mano. In quei casi la cancellazione non è un menu
+   * rimescolato, è un **calendario vuoto** — e con le porte aperte le finirebbero anche le giornate
+   * che aveva già aperto, con un avviso che le dice di ricontrollare una lista della spesa per
+   * giornate che non esistono più.
+   *
+   * ⚠️ `MenuService` questa domanda se la fa da sempre (`pianoFermato` in `regenerateFromToday` e in
+   * `restartFromPlanStart`) e dall'8/9 anche a cose fatte (`quantiRimessi`). Qui è **prima**, perché
+   * è l'unico momento in cui Vera la può fare.
+   *
+   * ⚠️ **Si chiede una volta, e serve all'anteprima quanto alla scrittura**: se lo chiedesse solo chi
+   * scrive, l'anteprima direbbe «rifaccio 7 giornate» e il riepilogo «non le ho toccate» — cioè
+   * chiederebbe una conferma per una cosa che non succede.
+   */
+  private async codaSeIlMotoreLaRicompone(clientId: string, calcola: () => CodaDaRifare): Promise<CodaDaRifare> {
+    const riceve = await chiRiceveIMenu(this.prisma as never, [clientId]);
+    return riceve.has(clientId) ? calcola() : { esito: 'piano_fermo' };
+  }
+
+  /**
    * **Tutti** i giorni della cliente da oggi in avanti — quelli già aperti compresi.
    *
    * ⚠️ `gte` dalla mezzanotte di oggi, non `gt: adesso`: `MenuDay.date` è una data senza ora, e
@@ -1857,11 +1903,179 @@ export class VeraChatService {
    * nel messaggio di riepilogo: è successo con «le giornate da rifare sono N», che l'anteprima
    * contava sui giorni toccati e l'esecuzione su una coda intera.
    */
-  private raccontaCoda(coda: CodaDaRifare, quando: 'prima' | 'dopo' = 'prima'): string {
+  /**
+   * ⛔ **CHI SI RITROVA IL MENU CAMBIATO SOTTO LO DEVE SAPERE** — 9/9, con l'apertura delle cinque
+   * porte. È lo stesso avviso della giornata riscritta a mano e di «Rigenera menu»: una regola sola,
+   * scritta in `menu/avviso-giorno-riscritto.ts`.
+   *
+   * ⚠️ Si avvisa per le giornate che aveva davvero aperto **e per quelle di cui non sappiamo** — non
+   * per quelle che sappiamo non aperte: quelle non le aveva in mano, e un campanello che suona
+   * sempre si smette di guardare.
+   *
+   * ⛔ **Il «non lo so» sta dalla parte dell'avviso, ed è la scelta che conta qui.** Il giorno del
+   * rilascio nessuna giornata è tracciata: contarle come «non aperte» vorrebbe dire riscrivere il
+   * menu a tutte **in silenzio**, cioè fare senza dirlo esattamente quello che questa consegna ha
+   * appena deciso di fare dicendolo. Fra un avviso di troppo a chi non aveva aperto e nessun avviso
+   * a chi aveva già fatto la spesa, il primo costa una notifica e il secondo costa una cena.
+   *
+   * ⚠️ E non ferma niente: il lavoro vero è il menu.
+   */
+  private async avvisaLaClienteDeiGiorniRifatti(
+    clientId: string,
+    rifatti: readonly GiornoDaValutare[],
+  ): Promise<Esito | 'non_partito' | null> {
+    const aperti = rifatti
+      .filter((g) => laClienteLHaAperto(g) || nonSappiamoSeLHaAperto(g))
+      /**
+       * ⚠️ Il giorno di una data **salvata** si legge in UTC, come in `MenuService`: `MenuDay.date`
+       * è una colonna DATE a mezzanotte UTC, e rileggerla nel fuso di Roma la sposterebbe indietro
+       * di un giorno appena il fuso stesse dietro a UTC. Stessa colonna, stessa lettura.
+       */
+      .map((g) => g.date.toISOString().slice(0, 10));
+    if (!aperti.length) return null;
+    /**
+     * ⛔ **L'ESITO SI RENDE, e non è un dettaglio** (9/9, in revisione). La frase che legge la
+     * nutrizionista diceva «l'ho avvisata» contando solo le giornate: ma `avvisaGiorniRiscritti` può
+     * rendere `passato`, può trovare un avviso identico già in attesa, e `notificaUtente` si mangia
+     * ogni errore. Affermare l'avviso senza averne l'esito è la stessa forma del difetto che
+     * `codaPerChiHaSalvato` esiste per chiudere sull'altra porta — un fatto detto a chi deve
+     * decidere se intervenire a mano, senza averlo.
+     */
+    return avvisaGiorniRiscritti(this.prisma, this.push, { clientId, giorniISO: aperti })
+      .catch((e: Error) => {
+        logger.warn(`Avviso «menu cambiato» non partito per ${clientId}: ${e.message}`);
+        return 'non_partito' as const;
+      });
+  }
+
+  /**
+   * ⚠️ **«Gliel'ho detto?»** — `gia_detto` vale sì: c'è già un avviso identico che non ha ancora
+   * letto, e un secondo non aggiungerebbe niente. `passato` e `non_partito` valgono no.
+   */
+  private static gliELArrivato(avviso: Esito | 'non_partito' | null): boolean {
+    return avviso === 'avvisata' || avviso === 'gia_detto';
+  }
+
+  /**
+   * ⛔ **LE GIORNATE CHE LEI AVEVA GIÀ IN MANO SI NOMINANO, PRIMA DEL SÌ** — 9/9, con la decisione
+   * di Simone che ha aperto le cinque porte.
+   *
+   * Fino a ieri quelle giornate fermavano tutto e la frase diceva «quello resta suo». Adesso si
+   * rifanno, ed è proprio per questo che vanno **contate a voce**: chi conferma deve sapere che sta
+   * cambiando un menu che una persona ha già letto — e per cui, molto probabilmente, ha già fatto la
+   * spesa. Una conferma data senza quel numero non è una conferma.
+   *
+   * ⚠️ È un metodo, e non due righe dentro `raccontaCoda`, perché la stessa frase serve **anche** ai
+   * divieti, che il riepilogo se lo compongono da soli. Scritta due volte divergerebbe, ed è
+   * esattamente quello che è già successo qui con «le giornate da rifare sono N».
+   *
+   * ⚠️ E l'accordo si fa: «1 giornata **l'aveva** già aperta», non «le aveva già aperte». Una frase
+   * che non torna in italiano fa dubitare del numero che porta.
+   */
+  private fraseGiaAperte(coda: CodaDaRifare & { esito: 'coda' }, fatto: boolean, arrivato: boolean): string {
+    const n = coda.apertiRifatti;
+    if (!n) return '';
+    const una = n === 1;
+    return (
+      ` ⚠️ ${n} di queste giornate ${fatto ? (una ? 'l\'aveva' : 'le aveva') : (una ? 'l\'ha' : 'le ha')} ` +
+      `già apert${una ? 'a' : 'e'} in app: ` +
+      (fatto
+        ? `${una ? 'gliel\'ho cambiata' : 'gliele ho cambiate'} sotto${VeraChatService.codaAvviso(arrivato)}`
+        : `${una ? 'gliela cambio' : 'gliele cambio'} sotto, e l'avviso io.`)
+    );
+  }
+
+  /**
+   * ⛔ **E SE L'AVVISO NON È PARTITO SI DICE, con cosa fare.** Una riga che afferma «l'ho avvisata»
+   * quando la notifica è morta lascia la cliente con la spesa vecchia e la nutrizionista convinta
+   * che sia a posto: nessuno dei due lo scoprirà. Detto, è una telefonata.
+   */
+  private static codaAvviso(arrivato: boolean): string {
+    return arrivato
+      ? ' e l\'ho avvisata.'
+      : ' ⚠️ ma l\'avviso non le è arrivato: diglielo tu, se ha già fatto la spesa.';
+  }
+
+  /**
+   * ⛔ **E IL TERZO STATO ARRIVA FINO ALLA FRASE** — è la ragione per cui esiste `nonSaputiRifatti`.
+   *
+   * Fino a ieri di queste giornate si diceva «non so dirti se le ha già aperte, e nel dubbio non le
+   * tolgo un menu di mano»: non si toccavano. Adesso si rifanno come le altre, perché una persona ha
+   * letto e ha confermato — ⛔ ma allora la frase deve **cambiare con il comportamento**. Tacerle
+   * vorrebbe dire che il giorno del rilascio, quando nessuna giornata è ancora tracciata, chi
+   * conferma legge «rifaccio 7 giornate» e basta, mentre sotto sta cambiando il menu di una che
+   * magari ha appena fatto la spesa. È la stessa bugia che questo file ha già pagato una volta, col
+   * segno rovesciato.
+   *
+   * ⚠️ E non si somma alle aperte: «le ha già aperte» detto di una giornata che non sappiamo è
+   * inventare un fatto.
+   */
+  private fraseNonSapute(coda: CodaDaRifare & { esito: 'coda' }, fatto: boolean, arrivato: boolean): string {
+    const n = coda.nonSaputiRifatti;
+    if (!n) return '';
+    const una = n === 1;
+    /**
+     * ⚠️ **«Di altre» solo se ce n'erano davvero delle altre** (9/9, in revisione). Con
+     * `apertiRifatti` a zero — il giorno del rilascio, cioè il caso per cui tutto questo esiste —
+     * «Di altre 7» non ha niente di cui essere altro, e si legge come sette giornate **in più**:
+     * quattordici invece di sette, davanti a chi sta decidendo quanto costa il suo sì.
+     */
+    const quante = coda.apertiRifatti
+      ? `Di altr${una ? 'a una' : `e ${n}`}`
+      : `Di ${una ? 'una' : `${n}`} di queste giornate`;
+    return (
+      ` ⚠️ ${quante} non so dirti se ${una ? 'l\'ha' : 'le ha'} già apert${una ? 'a' : 'e'} ` +
+      '(la sua app non me lo dice ancora): ' +
+      (fatto
+        ? `${una ? 'gliel\'ho cambiata' : 'gliele ho cambiate'} lo stesso${VeraChatService.codaAvviso(arrivato)}`
+        : `${una ? 'la rifaccio' : 'le rifaccio'} lo stesso, e l'avviso io.`)
+    );
+  }
+
+  /**
+   * @param avviso l'esito dell'avviso alla cliente, quando `quando === 'dopo'`. ⚠️ Senza, la frase
+   * affermerebbe «l'ho avvisata» contando solo le giornate — vedi `avvisaLaClienteDeiGiorniRifatti`.
+   */
+  private raccontaCoda(
+    coda: CodaDaRifare,
+    quando: 'prima' | 'dopo' = 'prima',
+    avviso: Esito | 'non_partito' | null = null,
+  ): string {
     const fatto = quando === 'dopo';
+    const arrivato = VeraChatService.gliELArrivato(avviso);
     if (coda.esito === 'niente') {
       return fatto ? 'Nessuna giornata già preparata era da rifare.' : 'Nessuna giornata già preparata da rifare.';
     }
+    /**
+     * ⛔ **IL MOTORE NON LA RIMETTEREBBE: NON SI CANCELLA** — 9/9, trovato da una revisione
+     * avversariale poche ore dopo aver aperto le cinque porte.
+     *
+     * Cancellare non è rifare. Se il percorso è finito o **in pausa**, `deliverIfEligible` non
+     * compone niente: la cliente resterebbe con lo schermo vuoto per tutti i giorni che le ho
+     * portato via — e con un avviso che le dice di ricontrollare la lista della spesa per giornate
+     * che non esistono più. `MenuService` questa domanda se la fa da sempre (`pianoFermato`); le
+     * porte di Vera non chiamano il motore, quindi se la devono fare prima. Vedi `chiRiceveIMenu`.
+     */
+    if (coda.esito === 'piano_fermo') {
+      return (
+        `⚠️ Le giornate già preparate ${fatto ? 'non le ho toccate' : 'NON le rifaccio'}: il suo `
+        + 'percorso non è in corso (finito, o in pausa), quindi il motore non le rimetterebbe e le '
+        + 'resterebbe il calendario vuoto. La regola vale lo stesso da adesso: i menu nuovi la '
+        + 'rispettano appena il percorso riparte.'
+      );
+    }
+    /**
+     * ⚠️ **Dal 9/9 i due rami qui sotto NON li raggiunge nessuno** — e non è un modo di dire: tutte
+     * e sette le chiamate di `raccontaCoda` passano una coda calcolata con `unaPersonaHaLetto`, che
+     * non produce mai `bloccata` né `non_lo_so`. ⛔ Restano perché la firma è `CodaDaRifare` e il
+     * tipo quei due esiti ce li ha: il giorno che si aggiunge una porta **senza** l'opzione — un
+     * automatismo, uno script — questa funzione deve avere la frase pronta invece di cadere sul
+     * ramo della coda e leggere `giorni` di un esito che non ce l'ha.
+     *
+     * ⚠️ Non si tolgono e non si trasformano in `throw`: chi arriva qui sta raccontando qualcosa a
+     * una persona, e un'eccezione al posto di una frase è il modo in cui una porta nuova rompe la
+     * chat invece di dire male una cosa vera.
+     */
     if (coda.esito === 'bloccata') {
       return (
         `⚠️ Le giornate già preparate ${fatto ? 'non le ho toccate' : 'NON le rifaccio'}: il menu ` +
@@ -1893,9 +2107,34 @@ export class VeraChatService {
       ? ` ⚠️ ${coda.lasciatiIndietro} giornat${coda.lasciatiIndietro === 1 ? 'a più vicina resta' : 'e più vicine restano'} ` +
         'come sono: quelle o le ha già aperte o non so dirlo.'
       : '';
+    /**
+     * ⛔ **LE GIORNATE CHE LEI AVEVA GIÀ IN MANO SI NOMINANO, PRIMA DEL SÌ** — 9/9, con la decisione
+     * di Simone che ha aperto le cinque porte.
+     *
+     * Fino a ieri quelle giornate fermavano tutto e la frase diceva «quello resta suo». Adesso si
+     * rifanno, ed è proprio per questo che vanno **contate a voce**: chi conferma deve sapere che
+     * sta cambiando un menu che una persona ha già letto — e per cui, molto probabilmente, ha già
+     * fatto la spesa. Una conferma data senza quel numero non è una conferma.
+     *
+     * ⚠️ E si dice anche a cose fatte (`quando: 'dopo'`), perché è il numero delle clienti che hanno
+     * ricevuto l'avviso.
+     */
+    const aperte = this.fraseGiaAperte(coda, fatto, arrivato);
+    /**
+     * ⛔ **E il TERZO STATO arriva fino alla frase** — è la ragione per cui esiste `nonSaputiRifatti`.
+     *
+     * Fino a ieri di queste giornate si diceva «non so dirti se le ha già aperte, e nel dubbio non le
+     * tolgo un menu di mano»: non si toccavano. Adesso si rifanno come le altre, perché una persona
+     * ha letto e ha confermato — ⛔ ma allora la frase deve **cambiare con il comportamento**. Tacerle
+     * vorrebbe dire che il giorno del rilascio, quando nessuna giornata è ancora tracciata, chi
+     * conferma legge «rifaccio 7 giornate» e basta, mentre sotto sta cambiando il menu di una che
+     * magari ha appena fatto la spesa. È esattamente la bugia che questo file ha già pagato una
+     * volta, con il segno rovesciato.
+     */
+    const nonSapute = this.fraseNonSapute(coda, fatto, arrivato);
     return (
       `${fatto ? 'Ho rifatto' : 'Rifaccio'} ${n} giornat${n === 1 ? 'a' : 'e'} dal ${giornoItaliano(coda.daQuando)} ` +
-      'in poi; quelle prima restano come sono.' + indietro
+      'in poi; quelle prima restano come sono.' + indietro + aperte + nonSapute
     );
   }
 
@@ -1922,15 +2161,32 @@ export class VeraChatService {
       return { testo: `Era già così: per **${cliente}** non cambia niente (${quali}). Non tocco nulla.`, esito: 'annullata' };
     }
 
-    const { tutti, colpito } = await this.giorniPastiDaRifare(stato.clienteId!, intento.slots, intento.azione)
-      .catch(() => ({ tutti: [] as GiornoDaValutare[], colpito: () => false }));
     /**
      * ⚠️ **L'anteprima dice quello che succederà davvero** (24/8). Diceva «le giornate da rifare sono
      * N» contando i giorni *toccati*, mentre la cancellazione ne prende una coda intera — e nel caso
      * bloccato non ne prende nessuna. Un'anteprima che conta diversamente da quello che poi fa è il
-     * modo in cui una conferma diventa una firma su una cosa non letta.
+     * modo in cui una conferma diventa una firma su una cosa non letta. Per questo la coda la calcola
+     * `codaPasti`, che è la **stessa** funzione che chiama la scrittura.
+     *
+     * ⛔ **E se la lettura non riesce, si DICE** (9/9, in revisione). Qui c'era un `.catch` che
+     * rendeva un calendario vuoto: l'anteprima diceva «Nessuna giornata già preparata da rifare» —
+     * un'affermazione sui suoi menu, con un guasto sotto. Fino all'8 costava un'informazione; da
+     * quando il sì può togliere di mano una giornata già aperta, costa la conferma stessa.
      */
-    const coda = codaDaRifare(tutti, colpito);
+    const coda = await this.codaPasti(stato.clienteId!, intento.slots, intento.azione)
+      .catch(() => 'rotta' as const);
+    if (coda === 'rotta') {
+      return {
+        testo: [
+          intento.azione === 'togli'
+            ? `Per **${cliente}** tolgo ${quali}: il motore non ${intento.slots.length === 1 ? 'lo' : 'li'} eroga più.`
+            : `Per **${cliente}** rimetto ${quali}.`,
+          '⚠️ I giorni già preparati non sono riuscita a guardarli, quindi non so dirti quanti ne '
+            + 'toccherei: riprova fra un minuto, o guarda il suo calendario.',
+        ].join('\n\n'),
+        esito: 'annullata',
+      };
+    }
     const righe = [
       intento.azione === 'togli'
         ? `Per **${cliente}** tolgo ${quali}: il motore non ${intento.slots.length === 1 ? 'lo' : 'li'} eroga più.`
@@ -2000,14 +2256,14 @@ export class VeraChatService {
      * percorsi di Vera uno degradava bene da sempre e l'altro l'avevo appena sistemato: questo era
      * rimasto indietro, sulla stessa identica decisione.
      */
-    const { tutti, colpito } = await this.giorniPastiDaRifare(clienteId, slots, intento.azione).catch(() => null)
-      ?? { tutti: [] as GiornoDaValutare[], colpito: () => false };
     let coda: CodaDaRifare = { esito: 'niente' };
     let riuscita = true;
+    let rifatti: GiornoDaValutare[] = [];
     try {
-      coda = codaDaRifare(tutti, colpito);
+      coda = await this.codaPasti(clienteId, slots, intento.azione);
       if (coda.esito === 'coda') {
         await this.prisma.menuDay.deleteMany({ where: { id: { in: coda.giorni.map((g) => g.id) } } });
+        rifatti = coda.giorni;
       }
     } catch (err) {
       riuscita = false;
@@ -2015,6 +2271,16 @@ export class VeraChatService {
         `Pasti scritti ma giorni non rifatti (cliente=${clienteId}): ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+    /**
+     * ⛔ **L'AVVISO STA FUORI DAL `try` CHE DECIDE SE DIRE «FATTO»** — 9/9, in revisione.
+     *
+     * Dentro, un guasto dell'avviso avrebbe messo `riuscita = false`, e Lucia avrebbe letto «sui
+     * giorni già preparati non sono riuscita a intervenire: restano con lo spuntino di prima» **dopo
+     * che la cancellazione era già andata a buon fine**. Non sarebbe andata a sistemarli, e quei
+     * giorni erano spariti: un messaggio falso nella direzione peggiore. L'avviso non ferma niente —
+     * il lavoro vero è il menu — e il metodo si mangia i suoi guai da solo.
+     */
+    const avviso = rifatti.length ? await this.avvisaLaClienteDeiGiorniRifatti(clienteId, rifatti) : null;
     const rifatte = coda.esito === 'coda' && riuscita ? coda.giorni.length : 0;
 
     const riga = (await this.registro.scrivi({
@@ -2035,7 +2301,7 @@ export class VeraChatService {
         ? `per ${cliente} ho tolto ${quali} — le kcal si ridistribuiscono sui pasti rimasti`
         : `per ${cliente} ho rimesso ${quali}`) +
       `. ${riuscita
-        ? this.raccontaCoda(coda, 'dopo')
+        ? this.raccontaCoda(coda, 'dopo', avviso)
         : '⚠️ Sui giorni già preparati non sono riuscita a intervenire: restano con lo spuntino di prima, '
           + 'dai un\'occhiata al suo calendario.'}`;
     return { testo: testi.scritta(riepilogo), esito: 'scritta', azioneId: riga.id };
@@ -3173,7 +3439,8 @@ export class VeraChatService {
      * cancellare?»: su una cliente di cui non sappiamo niente i colpiti diventavano zero e
      * l'anteprima prometteva «nessuna giornata da rifare» invece di dire «non lo so».
      */
-    return codaDaRifare(tutti, () => true);
+    /** ⚠️ E il guardiano del piano fermo vale anche qui: vedi `codaSeIlMotoreLaRicompone`. */
+    return this.codaSeIlMotoreLaRicompone(clientId, () => codaDaRifare(tutti, () => true, { unaPersonaHaLetto: true }));
   }
 
   /**
@@ -3313,6 +3580,8 @@ export class VeraChatService {
      */
     const coda = await this.codaProteine(stato.clienteId!);
     let rifatti = 0;
+    /** ⚠️ L'esito dell'avviso alla cliente: la frase non lo può dare per scontato. Vedi `raccontaCoda`. */
+    let avviso: Esito | 'non_partito' | null = null;
     let riuscita = true;
     if (coda.esito === 'coda') {
       const fatta = await this.prisma.menuDay
@@ -3326,6 +3595,8 @@ export class VeraChatService {
           return false;
         });
       riuscita = fatta;
+      /** ⚠️ Solo se la cancellazione è andata: avvisarla di un cambio non avvenuto sarebbe falso. */
+      if (fatta) avviso = await this.avvisaLaClienteDeiGiorniRifatti(stato.clienteId!, coda.giorni);
       if (fatta) rifatti = quanteDaRifare(coda);
     }
 
@@ -3355,7 +3626,7 @@ export class VeraChatService {
           protocollo,
           esito.daQuando,
           riuscita
-            ? this.raccontaCoda(coda, 'dopo')
+            ? this.raccontaCoda(coda, 'dopo', avviso)
             : '⚠️ Sui giorni già preparati non sono riuscita a intervenire: restano con i pasti di prima, '
               + 'dai un\'occhiata al suo calendario.',
         )}${dopo ? `\n\n${dopo.testo}` : ''}`,
@@ -3383,6 +3654,8 @@ export class VeraChatService {
      * rileggerà per capire cosa è successo.
      */
     let riuscita = coda.esito !== 'coda';
+    /** ⚠️ L'esito dell'avviso alla cliente: la frase non lo può dare per scontato. Vedi `raccontaCoda`. */
+    let avviso: Esito | 'non_partito' | null = null;
     if (coda.esito === 'coda') {
       riuscita = await this.prisma.menuDay
         .deleteMany({ where: { id: { in: coda.giorni.map((g) => g.id) } } })
@@ -3394,6 +3667,8 @@ export class VeraChatService {
           );
           return false;
         });
+      /** ⚠️ Solo se la cancellazione è andata: avvisarla di un cambio non avvenuto sarebbe falso. */
+      if (riuscita) avviso = await this.avvisaLaClienteDeiGiorniRifatti(stato.clienteId!, coda.giorni);
     }
     const rifatte = coda.esito === 'coda' && riuscita ? coda.giorni.length : 0;
     const riga = (await this.registro.scrivi({
@@ -3416,7 +3691,7 @@ export class VeraChatService {
         stato.clienteNome ?? 'lei',
         valore,
         riuscita
-          ? this.raccontaCoda(coda, 'dopo')
+          ? this.raccontaCoda(coda, 'dopo', avviso)
           : '⚠️ Sui giorni già preparati non sono riuscita a intervenire: restano con la quota vecchia, ' +
             'dai un\'occhiata al suo calendario.',
       ),
@@ -3992,33 +4267,73 @@ export class VeraChatService {
    * sbagliato, perché chi legge ci costruisce sopra invece di andare a guardare. Adesso quei due
    * punti passano di qui davvero, ed è la sentinella `una-porta-per-i-giorni.spec.ts` a tenerli.
    */
+  /**
+   * ⛔ **LA LETTURA, SEPARATA DALLA SCRITTURA — e chiamata DUE VOLTE apposta** (9/9).
+   *
+   * L'anteprima deve poter dire «di queste giornate una la cliente l'ha già aperta» **prima** del sì,
+   * e prima del sì non si cancella niente: quindi la stessa domanda si fa due volte, come già fa
+   * `codaProteine` per «più proteine». ⚠️ Due chiamate della **stessa** funzione sono il modo in cui
+   * un'anteprima non può contare diversamente da quello che poi succede: la seconda stesura di
+   * questo file aveva due conti scritti a mano in due punti, e divergevano.
+   *
+   * Rende `null` quando non c'è niente da guardare o quando la lettura è andata storta: al chiamante
+   * servono per due frasi diverse, e distinguerle è compito suo.
+   */
+  private async codaDeiVietati(clientId: string, termini: string[]): Promise<CodaDaRifare | null> {
+    if (!termini.length) return null;
+    const oggi = new Date();
+    const giorni = ((await this.prisma.menuDay.findMany({
+      where: { clientId, date: { gte: daQuandoSiPuoRifare(oggi) } } as never,
+      select: CAMPI_DEL_GIORNO as never,
+    })) ?? []) as GiornoDaValutare[];
+    if (!giorni.length) return null;
+
+    /**
+     * ⚠️ **Solo le ricette che stanno DAVVERO in quei giorni.** La prima stesura leggeva l'intero
+     * catalogo (id + nome + ingredienti) a ogni frase detta in chat: qui i candidati sono al
+     * massimo una manciata di giornate, e le loro ricette si contano sulle dita.
+     */
+    const idRicette = [...new Set(giorni.flatMap((g) => ricetteDelGiorno(g.meals)))];
+    if (!idRicette.length) return null;
+    const ricette = ((await this.prisma.recipe.findMany({
+      where: { id: { in: idRicette } } as never,
+      select: { id: true, name: true, ingredients: true },
+    })) ?? []) as { id: string; name: string | null; ingredients: unknown }[];
+
+    const fuori = ricetteVietate(ricette, termini);
+    // ⚠️ Il predicato si costruisce dagli STESSI `giorni`: i colpiti sono un sottoinsieme per
+    // costruzione, e la coda non può essere calcolata su un universo diverso da quello guardato.
+    const colpiti = new Set(giorniColpitiDaiVietati(giorni, fuori, oggi).map((g) => g.id));
+    /** ⚠️ E il guardiano del piano fermo: vedi `codaSeIlMotoreLaRicompone`. */
+    return this.codaSeIlMotoreLaRicompone(clientId, () => codaDaRifare(giorni, (g) => colpiti.has(g.id), { unaPersonaHaLetto: true }));
+  }
+
+  /**
+   * ⛔ **COSA COMPORTA, DETTO PRIMA DEL SÌ** — 9/9, con l'apertura delle cinque porte.
+   *
+   * Fino all'8 questa frase non serviva: le giornate già aperte non si toccavano, quindi il sì non
+   * poteva far sparire niente che la cliente avesse in mano. Adesso può, e allora il numero va
+   * **davanti** alla conferma: una conferma data senza sapere quante giornate già lette si stanno
+   * riscrivendo non è una conferma, è una firma su una cosa non letta.
+   *
+   * ⚠️ Se la lettura non riesce non si inventa un numero e non si tace: si dice che non si è potuto
+   * guardare. Un'anteprima muta si legge come «non c'è niente», che è la bugia di sempre.
+   */
+  private async anteprimaDeiVietati(clientId: string, termini: string[]): Promise<string> {
+    const coda = await this.codaDeiVietati(clientId, termini).catch(() => 'rotta' as const);
+    if (coda === 'rotta') {
+      return '⚠️ I giorni già preparati non sono riuscita a guardarli: la regola varrà comunque, ma '
+        + 'sul suo calendario dovrai dare un\'occhiata a mano.';
+    }
+    if (!coda || coda.esito !== 'coda') return '';
+    return this.raccontaCoda(coda);
+  }
+
   private async rifaiGiorniConVietati(clientId: string, termini: string[]): Promise<string> {
     if (!termini.length) return '';
     try {
-      const oggi = new Date();
-      const giorni = ((await this.prisma.menuDay.findMany({
-        where: { clientId, date: { gte: daQuandoSiPuoRifare(oggi) } } as never,
-        select: CAMPI_DEL_GIORNO as never,
-      })) ?? []) as GiornoDaValutare[];
-      if (!giorni.length) return '';
-
-      /**
-       * ⚠️ **Solo le ricette che stanno DAVVERO in quei giorni.** La prima stesura leggeva l'intero
-       * catalogo (id + nome + ingredienti) a ogni frase detta in chat: qui i candidati sono al
-       * massimo una manciata di giornate, e le loro ricette si contano sulle dita.
-       */
-      const idRicette = [...new Set(giorni.flatMap((g) => ricetteDelGiorno(g.meals)))];
-      if (!idRicette.length) return '';
-      const ricette = ((await this.prisma.recipe.findMany({
-        where: { id: { in: idRicette } } as never,
-        select: { id: true, name: true, ingredients: true },
-      })) ?? []) as { id: string; name: string | null; ingredients: unknown }[];
-
-      const fuori = ricetteVietate(ricette, termini);
-      // ⚠️ Il predicato si costruisce dagli STESSI `giorni`: i colpiti sono un sottoinsieme per
-      // costruzione, e la coda non può essere calcolata su un universo diverso da quello guardato.
-      const colpiti = new Set(giorniColpitiDaiVietati(giorni, fuori, oggi).map((g) => g.id));
-      const coda = codaDaRifare(giorni, (g) => colpiti.has(g.id));
+      const coda = await this.codaDeiVietati(clientId, termini);
+      if (!coda) return '';
       /**
        * ⛔ **«NON CE N'ERA» ADESSO È VERO** (26/8). Fino a ieri i colpiti erano già filtrati su «si
        * può rifare?», quindi questa frase scattava anche quando il piatto vietato c'era eccome — era
@@ -4026,6 +4341,24 @@ export class VeraChatService {
        * sono i giorni che contengono il piatto, punto: se sono zero, il piatto non c'è.
        */
       if (coda.esito === 'niente') return ' Nei giorni già preparati non ce n’era: non ho toccato niente.';
+      /**
+       * ⛔ **IL MOTORE NON LA RIMETTEREBBE: NON SI CANCELLA** — vedi `codaSeIlMotoreLaRicompone`.
+       * ⚠️ E la frase non dice «non ce n'era»: il piatto vietato lì dentro c'è, e ci resta.
+       */
+      if (coda.esito === 'piano_fermo') {
+        return (
+          ' ⚠️ Nei giorni già preparati c’è, ma non li ho toccati: il suo percorso non è in corso '
+          + '(finito, o in pausa), quindi il motore non li rimetterebbe e le resterebbe il calendario '
+          + 'vuoto. La regola vale lo stesso: i menu nuovi la rispettano appena il percorso riparte.'
+        );
+      }
+      /**
+       * ⚠️ **I due rami qui sotto dal 9/9 non li raggiunge nessuno** — `codaDeiVietati` calcola sempre
+       * con `unaPersonaHaLetto`, che `bloccata` e `non_lo_so` non li produce. Restano per la stessa
+       * ragione dei gemelli in `raccontaCoda`: la firma è `CodaDaRifare`, e senza di loro il giorno
+       * che qualcuno calcolasse la coda **senza** l'opzione si cadrebbe sul ramo della coda a leggere
+       * `giorni` di un esito che non ce l'ha.
+       */
       if (coda.esito === 'bloccata') {
         return (
           ` ⚠️ Nei giorni già preparati c’è, ma non li ho toccati: il menu del ${giornoItaliano(coda.apertoIl)} ` +
@@ -4044,12 +4377,27 @@ export class VeraChatService {
       }
 
       await this.prisma.menuDay.deleteMany({ where: { id: { in: coda.giorni.map((g) => g.id) } } });
+      /** ⚠️ E la cliente viene avvisata delle giornate che aveva già in mano: vedi il metodo. */
+      const avviso = await this.avvisaLaClienteDeiGiorniRifatti(clientId, coda.giorni);
+      const arrivato = VeraChatService.gliELArrivato(avviso);
       const quante = coda.giorni.length;
       const indietro = coda.lasciatiIndietro
         ? ` ⚠️ ${coda.lasciatiIndietro} ${coda.lasciatiIndietro === 1 ? 'giornata più vicina ce l’ha' : 'giornate più vicine ce le ha'} ` +
           'già in mano (o non so dirlo): quell\'alimento lì dentro resta.'
         : '';
-      return ` Ho rifatto anche ${quante} ${quante === 1 ? 'giornata già preparata' : 'giornate già preparate'}: le ricompone il motore al prossimo giro.${indietro}`;
+      /**
+       * ⛔ **E QUELLE CHE AVEVA GIÀ IN MANO SI DICONO ANCHE QUI**, con le stesse parole
+       * dell'anteprima: chi ha confermato deve ritrovare nel riepilogo il numero su cui ha detto sì.
+       * ⚠️ Le due frasi le compone `raccontaCoda`, così non possono divergere.
+       */
+      /**
+       * ⚠️ **Le stesse due frasi dell'anteprima, dalla stessa funzione**: chi ha confermato deve
+       * ritrovare nel riepilogo il numero su cui ha detto sì, con le stesse parole. Scritte due
+       * volte, divergono — è già successo in questo file con «le giornate da rifare sono N».
+       */
+      const aperte = this.fraseGiaAperte(coda, true, arrivato);
+      const nonSapute = this.fraseNonSapute(coda, true, arrivato);
+      return ` Ho rifatto anche ${quante} ${quante === 1 ? 'giornata già preparata' : 'giornate già preparate'}: le ricompone il motore al prossimo giro.${indietro}${aperte}${nonSapute}`;
     } catch (err) {
       logger.warn(`Restrizione scritta ma giorni non rifatti (cliente=${clientId}): ${err instanceof Error ? err.message : String(err)}`);
       return ' ⚠️ La regola vale da adesso, ma sui giorni già preparati non sono riuscita a intervenire: dai un’occhiata al suo calendario.';

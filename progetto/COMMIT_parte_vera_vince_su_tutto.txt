@@ -1,0 +1,82 @@
+Le cinque porte di Vera passano anche sui menu che la cliente ha gia aperto — dicendolo prima, e avvisandola dopo
+
+LA DECISIONE (Simone, 8/9, estesa il 9/9)
+«Il nutrizionista sostituisce anche se il cliente ha gia visto. Vince su tutto»,
+con UNA conferma sola. L'8 era stata applicata a «Scrivi il menu a mano»; il 9
+alle cinque porte di Vera:
+  A · il divieto dettato in chat («a Lorena niente pesce»)
+  B · «togli lo spuntino»
+  C · «rifai con piu proteine»
+  D · le ore del digiuno (16:8 -> 23:1)
+  E · la regola di dieta approvata dal capo nutrizionista
+
+DOV'ERA
+Un giorno gia aperto fermava tutto. Lucia dettava «niente pesce», il branzino
+era nel menu di domani, e leggeva «non li ho tocati: c'e Rigenera menu» — un
+pulsante che quel giorno lo salta a sua volta. La regola valeva sui menu nuovi e
+il piatto vietato restava in quello di stasera.
+
+COME FUNZIONA ADESSO
+`codaDaRifare` ha un'opzione, `unaPersonaHaLetto`, che toglie di mezzo gli
+intoccabili. Sta SPENTA di suo: i tre script che la chiamano (`rifai:*`, il
+collaudo) girano da soli, e una passata automatica che riscrive il menu di chi
+ha appena fatto la spesa e un'altra cosa. Chi puo accenderla lo tiene fermo una
+sentinella nuova, `una-persona-ha-letto.spec.ts`, che i chiamanti li conta sul
+codice invece di crederci.
+
+LE DUE COSE CHE TENGONO IN PIEDI LA DECISIONE
+1. IL NUMERO SI DICE PRIMA DEL SI. «Rifaccio 3 giornate ... 1 di queste l'ha gia
+   aperta in app: gliela cambio sotto, e l'avviso io.» Una conferma data senza
+   quel numero non e una conferma. ⚠️ I divieti erano l'unica porta che il conto
+   lo dava solo DOPO: adesso l'anteprima lo calcola con la stessa funzione della
+   scrittura, cosi i due numeri non possono divergere.
+2. LA CLIENTE VIENE AVVISATA, con lo stesso avviso di «Scrivi il menu a mano» e
+   di «Rigenera menu» — una regola sola, in `menu/avviso-giorno-riscritto.ts`.
+
+IL TERZO STATO SOPRAVVIVE
+Le giornate di cui NON sappiamo se le ha aperte (app vecchia: il giorno del
+rilascio sono tutte) si rifanno anche loro, si contano A PARTE e si avvisano.
+⛔ Sommarle alle aperte direbbe «le ha gia aperte» di giornate di cui non
+sappiamo niente — la bugia da cui nasce tutto `menu-da-rifare.ts`, col segno
+rovesciato. Il testo dell'avviso alla cliente ha perso «dopo che l'avevi gia
+aperta» per la stessa ragione: e un testo solo per cinque chiamanti, e puo dire
+solo quello che vale per tutti.
+
+I CINQUE DIFETTI TROVATI DALLA REVISIONE AVVERSARIALE, PRIMA DI CONSEGNARE
+· ⛔ CANCELLARE NON E RIFARE, ed era il piu grave. Vera cancella e basta: i
+  giorni li rimette il motore al suo giro, e `deliverIfEligible` compone SOLO se
+  il percorso lo permette. Su una cliente col piano in pausa non compone niente:
+  le sparivano anche le giornate gia lette, restava con lo schermo vuoto per una
+  settimana e con un avviso che le diceva di ricontrollare la lista della spesa
+  per giornate che non esistono piu. `MenuService` questa domanda se la fa da
+  sempre (`pianoFermato`); adesso se la fanno anche le cinque porte, PRIMA
+  (`chiRiceveIMenu`), ed e un quinto esito che l'anteprima racconta.
+· ⛔ UN AVVISO PICCOLO NE SOFFOCAVA UNO GRANDE. Il dedup guardava solo il primo
+  giorno: un avviso per UNA giornata non ancora letta bloccava quello per SETTE
+  che partiva dieci minuti dopo. Scenario vero: alle 09:00 si riscrive domani a
+  mano, alle 09:10 si detta «niente pesce». La cliente leggeva «Il menu di
+  domani e cambiato» e degli altri sei giorni non sapeva niente, per sempre.
+  Adesso il dedup guarda anche QUANTE giornate copriva.
+· ⛔ «L'HO AVVISATA» ERA UN'AFFERMAZIONE SENZA FATTO. `notificaUtente` si mangia
+  ogni errore per non far fallire il lavoro vero (giusto), e rendeva `void`: la
+  frase che legge Lucia si componeva dal solo numero delle giornate. Adesso
+  `notificaUtente` dice se la riga e stata scritta, l'esito arriva fino alla
+  frase, e se l'avviso non e partito si legge «l'avviso non le e arrivato:
+  diglielo tu, se ha gia fatto la spesa» — cioe una telefonata invece di
+  un'informazione. Stessa cosa nel riepilogo del capo, dove le clienti sono
+  fino a duecento.
+· ⚠️ L'AVVISO STAVA DENTRO IL `try` CHE DECIDE SE DIRE «FATTO» in «togli lo
+  spuntino»: un guasto dell'avviso avrebbe fatto leggere «non sono riuscita a
+  intervenire: restano con lo spuntino di prima» DOPO che la cancellazione era
+  andata. Lucia non sarebbe andata a sistemarli, e quei giorni erano spariti.
+· ⚠️ DUE RAGIONI FALSE nei commenti — «nove chiamanti, fra cui il giro
+  notturno» (il giro notturno `codaDaRifare` non la chiama) e «i rami bloccata /
+  non lo so restano perche li produce chi non ha una persona che ha letto»
+  (nessuno li produce piu). Corrette dicendo com'e davvero: restano perche la
+  firma e `CodaDaRifare`, e il giorno che si aggiunge una porta senza l'opzione
+  la frase dev'esserci gia.
+E due di italiano: «Di altra 1» invece di «Di altra una», e «e la avviso io»
+invece di «e l'avviso io» — piu «Di altre 7» quando di altre non ce n'erano,
+che il giorno del rilascio si legge come quattordici giornate invece di sette.
+
+NIENTE MIGRAZIONI.

@@ -69,6 +69,11 @@ function make(
     riscritturaModello?: string | null;
     /** L'esito della porta che cambia le ORE del digiuno (25/8). Assente = riesce. */
     digiunoEsito?: { ok: boolean; perche: string; daQuando: 'oggi' | 'domani' };
+    /**
+     * ⛔ **Il percorso della cliente è in PAUSA** (9/9). Assente = in corso, come in tutti i test
+     * scritti prima. Acceso, le sue giornate non si cancellano: il motore non le rimetterebbe.
+     */
+    pianoInPausa?: boolean;
   } = {},
 ) {
   const messaggioCreate = jest.fn().mockResolvedValue({ id: 'm1' });
@@ -93,6 +98,13 @@ function make(
     clientProfile: {
       findUnique: jest.fn().mockResolvedValue(opzioni.profilo ?? { dislikedFoods: [], allergies: [], intolerances: [], name: 'Giulia', pastiEsclusi: [] }),
       update: profileUpdate,
+      /**
+       * ⛔ **CHI HA IL PIANO IN PAUSA** (9/9): `chiRiceveIMenu` cerca le clienti **ferme**, e nessuna
+       * lo è se il test non dice altro. ⚠️ Vuoto vuol dire «nessuna in pausa», non «nessuna cliente»:
+       * chi mette una riga qui sta dicendo che quella cliente NON riceve menu, e quindi che le sue
+       * giornate non si cancellano — cancellarle la lascerebbe col calendario vuoto.
+       */
+      findMany: jest.fn().mockResolvedValue(opzioni.pianoInPausa ? [{ userId: 'c1' }] : []),
     },
     recipe: { count: jest.fn().mockResolvedValue(1), findMany: jest.fn().mockResolvedValue([]) },
     menuDay: {
@@ -505,6 +517,90 @@ describe('VeraChatService — l\'anteprima e la conferma', () => {
     expect(profileUpdate).not.toHaveBeenCalled();
   });
 
+  /**
+   * ⛔ **I GIORNI GIÀ PREPARATI SI RACCONTANO PRIMA DEL SÌ — 9/9, e i divieti erano l'unica porta
+   * che non lo faceva.**
+   *
+   * Le altre quattro l'anteprima ce l'avevano già (le proteine, gli spuntini, il digiuno, la regola
+   * di dieta); qui il conto usciva solo **dopo**, dentro «Fatto. Ho rifatto anche N giornate». Fino
+   * all'8/9 non cambiava niente, perché le giornate già aperte non si toccavano e il sì non poteva
+   * portare via niente che la cliente avesse in mano. Dal 9 può.
+   *
+   * ⛔ Quindi il numero deve stare **davanti** alla conferma: una conferma data senza sapere quante
+   * giornate già lette si stanno riscrivendo non è una conferma, è una firma su una cosa non letta.
+   * ⚠️ L'ordine si controlla con gli indici, non a occhio: la stessa frase messa **dopo** «Confermi?»
+   * passerebbe un `toContain` e sarebbe letta a cose fatte.
+   */
+  it('⛔ il divieto dice le giornate già aperte PRIMA di chiedere «Confermi?»', async () => {
+    const pasto = [{ slot: 'lunch', recipeId: 'r-tonno', name: 'Tonno', kcal: 500 }];
+    const { service, messaggioCreate, profileUpdate } = make(
+      {
+        recipe: {
+          count: jest.fn().mockResolvedValue(1),
+          findMany: jest.fn().mockResolvedValue([{ id: 'r-tonno', name: 'Tonno alle olive', ingredients: [] }]),
+        },
+      },
+      {
+        giorniMenu: [
+          { id: 'g1', clientId: 'c1', date: giornoSalvato(1), apertoDallaClienteIl: new Date(), apertureTracciate: true, meals: pasto },
+        ],
+      },
+    );
+    await service.parla('lucia', 'a Giulia Rossi niente tonno');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Rifaccio 1 giornata');
+    expect(testo).toContain("1 di queste giornate l'ha già aperta in app");
+    expect(testo.indexOf('già aperta in app')).toBeLessThan(testo.indexOf('Confermi?'));
+    // ⚠️ E fin qui non è stato scritto niente: è un'anteprima, non una scrittura che si racconta.
+    expect(profileUpdate).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **CANCELLARE NON È RIFARE: se il percorso è in pausa, i giorni NON si toccano** — 9/9,
+   * trovato da una revisione avversariale poche ore dopo aver aperto le cinque porte.
+   *
+   * Vera cancella e basta: la ricomposizione la fa il motore al suo giro, e `deliverIfEligible`
+   * compone **solo se il percorso lo permette**. Su una cliente col piano messo in pausa a mano non
+   * compone niente — `regenerateFromToday` per questo si rifiuta di toccarla — quindi cancellare le
+   * lascerebbe il **calendario vuoto**, e con le porte aperte le sparirebbero anche le giornate che
+   * aveva già letto: schermo vuoto per una settimana, più un avviso che le dice di ricontrollare la
+   * lista della spesa per giornate che non esistono più.
+   *
+   * ⛔ E la frase non dice «non ce n'era»: il piatto vietato lì dentro c'è, e ci resta.
+   */
+  it('⛔ col percorso in pausa i giorni già preparati non si toccano, e si dice perché', async () => {
+    const pasto = [{ slot: 'lunch', recipeId: 'r-tonno', name: 'Tonno', kcal: 500 }];
+    const { service, messaggioCreate, prisma } = make(
+      {
+        recipe: {
+          count: jest.fn().mockResolvedValue(1),
+          findMany: jest.fn().mockResolvedValue([{ id: 'r-tonno', name: 'Tonno alle olive', ingredients: [] }]),
+        },
+      },
+      {
+        pianoInPausa: true,
+        statoAperto: statoDaConfermare(),
+        giorniMenu: [
+          { id: 'g1', clientId: 'c1', date: giornoSalvato(1), apertoDallaClienteIl: new Date(), apertureTracciate: true, meals: pasto },
+        ],
+      },
+    );
+    await service.parla('lucia', 'sì');
+    await service.parla('lucia', 'solo per lei');
+    expect(prisma.menuDay.deleteMany).not.toHaveBeenCalled();
+    /** ⛔ E nessun avviso: non le è cambiato niente, e un avviso falso è peggio di nessun avviso. */
+    expect(prisma.notification.create).not.toHaveBeenCalled();
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('il suo percorso non è in corso');
+    /**
+     * ⛔ **E non «non ce n'era»**: è la frase del difetto del 26/8, e qui sarebbe falsa allo stesso
+     * modo — il tonno nel menu di domani c'è, solo che non lo possiamo togliere.
+     */
+    expect(testo).not.toContain('non ce n’era');
+    // ⚠️ Ma la regola vale lo stesso: è il motivo per cui la si detta.
+    expect(testo).toContain('Ho tolto dai suoi menu');
+  });
+
   it('un «no» non scrive niente', async () => {
     const { service, messaggioCreate, profileUpdate, registro } = make({}, { statoAperto: statoDaConfermare() });
     await service.parla('lucia', 'no aspetta');
@@ -608,7 +704,12 @@ describe('VeraChatService — la scrittura', () => {
           intento: { tipo: 'restrizione', cliente: 'Lorena', vietati: ['pesce'], tenuti: [] },
         }),
         giorniMenu: [
-          // ⚠️ GIÀ APERTO, e PRIMA di quello colpito: resta suo, e non impedisce di rifare la coda.
+          /**
+           * ⛔ **GIÀ APERTO — e dal 9/9 si rifà anche lui.** Fino all'8 questo giorno restava suo e
+           * la coda partiva da quello dopo. Decisione di Simone (8/9, estesa alle porte di Vera il
+           * 9): *«il nutrizionista sostituisce anche se il cliente ha già visto. Vince su tutto»* —
+           * qui la nutrizionista ha dettato una frase, ha letto cosa comporta e ha detto sì.
+           */
           { id: 'g-visto', clientId: 'c1', date: fra(1), apertoDallaClienteIl: new Date(), apertureTracciate: true, meals: pasto('r-branzino', 'Branzino al forno') },
           { id: 'g-branzino', clientId: 'c1', date: fra(2), apertoDallaClienteIl: null, apertureTracciate: true, meals: pasto('r-branzino', 'Branzino al forno') },
           // ⚠️ «Triglie» al plurale: lo prende la RADICE di «triglia». Con un `includes` nudo no.
@@ -630,13 +731,27 @@ describe('VeraChatService — la scrittura', () => {
      * una persona senza cena.
      */
     const cancellati = (prisma.menuDay.deleteMany as jest.Mock).mock.calls[0][0].where.id.in as string[];
-    expect(cancellati.sort()).toEqual(['g-branzino', 'g-carpaccio', 'g-pollo', 'g-triglie']);
-    // ⚠️ E il giorno GIÀ APERTO non è fra questi: resta suo.
-    expect(cancellati).not.toContain('g-visto');
+    expect(cancellati.sort()).toEqual(['g-branzino', 'g-carpaccio', 'g-pollo', 'g-triglie', 'g-visto']);
 
     const { testo } = ultimoAgente(messaggioCreate);
     expect(testo).toContain('Ho tolto dai suoi menu: pesce');
-    expect(testo).toContain('Ho rifatto anche 4 giornate');
+    expect(testo).toContain('Ho rifatto anche 5 giornate');
+    /**
+     * ⛔ **E LA GIORNATA GIÀ APERTA SI NOMINA.** Rifarla è la decisione; rifarla **in silenzio**
+     * sarebbe il difetto che quella decisione porta con sé. Chi ha dettato la frase deve leggere
+     * che una di quelle giornate la cliente ce l'aveva già in mano — magari con la spesa fatta.
+     */
+    expect(testo).toContain("1 di queste giornate l'aveva già aperta in app");
+
+    /**
+     * ⛔ **E LA CLIENTE VIENE AVVISATA.** È l'altra metà: a lei il menu cambia sotto, e l'unica cosa
+     * che le impedisce di trovarsi in mano una lista della spesa che non c'entra più niente è
+     * l'avviso. ⚠️ Si guarda `notification.create`, non il conteggio: un avviso partito per il
+     * giorno sbagliato passerebbe un `toHaveBeenCalled` senza dire niente a nessuno.
+     */
+    const avviso = (prisma.notification.create as jest.Mock).mock.calls[0][0].data;
+    expect(avviso.userId).toBe('c1');
+    expect((avviso.payload as { giorno: string }).giorno).toBe(fra(1).toISOString().slice(0, 10));
   });
 
   /**
@@ -677,16 +792,23 @@ describe('VeraChatService — la scrittura', () => {
   });
 
   /**
-   * ⛔ **IL GIORNO DEL RILASCIO: «NON LO SO» SI DICE, e non si spaccia per «non ce n'era»** — 26/8.
+   * ⛔ **IL GIORNO DEL RILASCIO: «NON LO SO» SI DICE, e non si spaccia per «non ce n'era»** — 26/8,
+   * riscritto il 9/9 quando le cinque porte si sono aperte.
    *
-   * È il caso per cui tutta questa modifica esiste, ed è il caso in cui era più facile riprodurre il
-   * difetto: nessuna giornata è ancora tracciata, quindi il branzino c'è nel menu di domani ma di
-   * quel giorno non sappiamo se lei l'ha aperto. ⛔ Con i tre esiti di prima la risposta sarebbe
-   * stata «Nei giorni già preparati non ce n'era: non ho toccato niente» — **testualmente** la frase
-   * che questa modifica esiste per togliere, falsa nello stesso identico caso, con un campo nuovo
-   * sotto. Il quarto esito è quello che chiude il difetto invece di spostarlo.
+   * È il caso per cui tutta questa modifica esiste: nessuna giornata è ancora tracciata, quindi il
+   * branzino c'è nel menu di domani ma di quel giorno non sappiamo se lei l'ha aperto.
+   *
+   * ## ⚠️ Cosa è cambiato, e cosa NON è cambiato
+   *
+   * **Il comportamento sì**: fino all'8/9 nel dubbio non si toccava niente; dal 9 una persona ha
+   * letto e ha confermato, e si rifà. **La frase no**: «non so dirti» resta, perché resta vero che
+   * non lo sappiamo. ⛔ La cosa che questo test difende non è «non si tocca» — è che nella risposta
+   * non compaia mai «non ce n'era» né «l'ha già aperto», cioè un fatto al posto di uno mancante.
+   * Il difetto del 26/8 era una frase, non una cancellazione.
+   *
+   * ⛔ E l'avviso parte: se non sappiamo, magari ci aveva fatto la spesa.
    */
-  it('⛔ di un giorno che non sappiamo si dice «non lo so», mai «non ce n\'era»', async () => {
+  it('⛔ di un giorno che non sappiamo si dice «non lo so», e la si avvisa', async () => {
     const pasto = (recipeId: string) => [{ slot: 'lunch', recipeId, name: 'x', kcal: 500 }];
     const { service, prisma, messaggioCreate } = make(
       {
@@ -707,22 +829,39 @@ describe('VeraChatService — la scrittura', () => {
       },
     );
     await service.parla('lucia', 'solo per lei');
-    // ⚠️ Nel dubbio non si tocca: si rimanda una correzione, non si toglie un menu di mano.
-    expect((prisma.menuDay.deleteMany as jest.Mock)).not.toHaveBeenCalled();
+    // ⚠️ Si rifà: chi ha dettato la frase ha letto l'anteprima e ha detto sì.
+    expect((prisma.menuDay.deleteMany as jest.Mock)).toHaveBeenCalledWith({ where: { id: { in: ['g-branzino'] } } });
     const { testo } = ultimoAgente(messaggioCreate);
-    expect(testo).toContain('non so dirti se li ha già aperti');
+    /**
+     * ⚠️ La frase intera, non un frammento: `non so dirti se` da solo lo dice anche la frase
+     * **vecchia** («…e nel dubbio non le tolgo un menu di mano»), quella di quando qui non si
+     * cancellava. Un guardiano che sta bene con tutt'e due non guarda niente.
+     */
+    expect(testo).toContain("Di una di queste giornate non so dirti se l'ha già aperta");
+    // ⛔ Le due frasi false, tutte e due: «non ce n'era» è quella del 26/8, «l'ha già aperto» è la
+    // sua gemella col segno opposto — un fatto affermato dove il fatto non c'è.
     expect(testo).not.toContain('non ce n’era');
-    // ⛔ E non le si dice «l'ha già aperto»: sarebbe un fatto inventato al posto di uno mancante.
-    expect(testo).not.toContain('l’ha già aperto in app');
-    expect(testo).toContain('Rigenera menu');
+    expect(testo).not.toContain('già aperta in app');
+    /** ⛔ E la cliente viene avvisata, del giorno giusto: nel dubbio si dà per possibile che ci avesse fatto la spesa. */
+    const avviso = (prisma.notification.create as jest.Mock).mock.calls[0][0].data;
+    expect(avviso.userId).toBe('c1');
+    expect((avviso.payload as { giorno: string }).giorno).toBe(giornoSalvato(1).toISOString().slice(0, 10));
   });
 
   /**
-   * ⛔ **E se in mezzo c'è un giorno GIÀ APERTO non si tocca niente, e lo si DICE.** Un giorno letto
-   * resta suo, ma se sta dopo quello colpito resta lui l'ultimo del calendario e il buco si
-   * riaprirebbe. Fingere di aver fatto sarebbe la bugia da cui nasce questo lavoro.
+   * ⛔ **UN GIORNO GIÀ APERTO DOPO QUELLO COLPITO ADESSO SI RIFÀ — e si dice prima e dopo** (9/9).
+   *
+   * Fino all'8 questo caso fermava tutto: il giorno letto restava suo, e siccome stava **dopo** quello
+   * colpito non si poteva nemmeno cancellare la coda senza lasciare un buco. La risposta era «non li
+   * ho toccati, c'è «Rigenera menu»» — cioè: la nutrizionista aveva dettato «niente pesce», il pesce
+   * restava, e le si indicava un pulsante che quel giorno lo salta a sua volta.
+   *
+   * Decisione di Simone (8/9, estesa alle porte di Vera il 9): *«il nutrizionista sostituisce anche
+   * se il cliente ha già visto. Vince su tutto»*, **con una conferma sola**. ⛔ Quindi qui si
+   * cancella la coda intera, il giorno letto compreso — e le due cose che tengono in piedi la
+   * decisione sono che il numero si dica **prima** del sì e che la cliente venga avvisata.
    */
-  it('⛔ un giorno già aperto DOPO quello colpito ferma tutto, e la risposta lo dice', async () => {
+  it('⛔ un giorno già aperto DOPO quello colpito si rifà, e lei viene avvisata', async () => {
     const GIORNO = 86_400_000;
     const pasto = (recipeId: string) => [{ slot: 'lunch', recipeId, name: 'x', kcal: 500 }];
     const { service, prisma, messaggioCreate } = make(
@@ -747,21 +886,31 @@ describe('VeraChatService — la scrittura', () => {
       },
     );
     await service.parla('lucia', 'solo per lei');
-    expect((prisma.menuDay.deleteMany as jest.Mock)).not.toHaveBeenCalled();
+    /** ⚠️ La coda intera: il giorno colpito **e** quello letto che sta dopo. */
+    expect((prisma.menuDay.deleteMany as jest.Mock).mock.calls[0][0].where.id.in.sort())
+      .toEqual(['g-branzino', 'g-letto']);
     const { testo } = ultimoAgente(messaggioCreate);
     /**
-     * ⚠️ **E dice QUALE giorno** (24/8): prima diceva «ne ha già aperto uno», che è vero e
-     * inservibile — la nutrizionista deve poter andare a guardare **quel** giorno, non ripassarsi
-     * tutto il calendario per trovarlo.
-     *
-     * ⛔ **E dice «le è arrivato in app», non «l'ha aperto»**: `viewedAt` lo mette `getMenu` a ogni
-     * apertura dell'app su **tutti** i giorni della finestra, futuri compresi. «L'ha aperto» era una
-     * cosa che il dato non sostiene, scritta nella frase che una professionista legge per decidere.
-     * Voce `visto-non-vuol-dire-aperto`.
+     * ⛔ **IL NUMERO SI DICE.** È l'unica cosa che distingue «vince su tutto» da «cambia i menu di
+     * nascosto»: chi ha confermato deve leggere che una di quelle giornate la cliente ce l'aveva già
+     * in mano. Se questa riga cade, la decisione di Simone resta scritta nel codice e sparisce dalla
+     * conversazione — che è il posto dove una persona la può ancora fermare.
      */
-    const [a, m, g] = giornoSalvato(3).toISOString().slice(0, 10).split('-');
-    expect(testo).toContain(`il menu del ${g}/${m}/${a} l'ha già aperto in app`);
-    expect(testo).toContain('Rigenera menu');
+    expect(testo).toContain("1 di queste giornate l'aveva già aperta in app");
+    /**
+     * ⛔ **E «Rigenera menu» NON si nomina più**: era la via d'uscita di quando qui non si toccava
+     * niente. Adesso è stato fatto, e mandare comunque a premere un pulsante — che oltretutto il
+     * giorno già aperto lo salta — vorrebbe dire far rifare a mano un lavoro appena finito.
+     */
+    expect(testo).not.toContain('Rigenera menu');
+    /**
+     * ⛔ **E LEI VIENE AVVISATA, del giorno GIUSTO.** Un avviso partito per la data sbagliata
+     * passerebbe un `toHaveBeenCalled` e manderebbe la cliente a ricontrollare un giorno che non è
+     * cambiato, lasciandola con la spesa vecchia su quello che è cambiato davvero.
+     */
+    const avviso = (prisma.notification.create as jest.Mock).mock.calls[0][0].data;
+    expect(avviso.userId).toBe('c1');
+    expect((avviso.payload as { giorno: string }).giorno).toBe(giornoSalvato(3).toISOString().slice(0, 10));
   });
 
   /**
@@ -2025,10 +2174,14 @@ describe('VeraChatService — i pasti (azione 3, Decisioni 13/8 §14)', () => {
   });
 
   /**
-   * ⛔ **E se in coda c'è un giorno GIÀ APERTO non si tocca niente, e lo si dice.** Quel giorno resta
-   * suo — magari ci ha fatto la spesa — ma resterebbe anche l'ultimo, e il buco si riaprirebbe.
+   * ⛔ **UN GIORNO GIÀ APERTO IN CODA ADESSO SI RIFÀ — e si dice** (9/9, decisione di Simone
+   * dell'8 estesa alle porte di Vera).
+   *
+   * Fino all'8 fermava tutto: la merenda restava nel menu di dopodomani, e a Lucia si diceva di
+   * usare «Rigenera menu» — che quel giorno lo salta uguale. Adesso la sua conferma vince, e le due
+   * cose che la tengono onesta sono il numero detto **prima** del sì e l'avviso alla cliente.
    */
-  it('⛔ un giorno già aperto dopo quello colpito ferma la cancellazione, con la data', async () => {
+  it('⛔ un giorno già aperto in coda si rifà, e lei viene avvisata', async () => {
     const letto = {
       id: 'g2', clientId: 'c1', date: giornoSalvato(2), apertoDallaClienteIl: new Date(), apertureTracciate: true,
       meals: [{ slot: 'breakfast', recipeId: 'r1' }],
@@ -2047,9 +2200,11 @@ describe('VeraChatService — i pasti (azione 3, Decisioni 13/8 §14)', () => {
       },
     );
     await service.parla('lucia', 'sì');
-    expect(prisma.menuDay.deleteMany).not.toHaveBeenCalled();
-    const [a, m, g] = letto.date.toISOString().slice(0, 10).split('-');
-    expect(ultimoAgente(messaggioCreate).testo).toContain(`il menu del ${g}/${m}/${a} l'ha già aperto in app`);
+    expect(prisma.menuDay.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g1', 'g2'] } } });
+    expect(ultimoAgente(messaggioCreate).testo).toContain("1 di queste giornate l'aveva già aperta in app");
+    /** ⛔ E l'avviso parte per quel giorno lì, non per un altro. */
+    const avviso = (prisma.notification.create as jest.Mock).mock.calls[0][0].data;
+    expect((avviso.payload as { giorno: string }).giorno).toBe(letto.date.toISOString().slice(0, 10));
   });
 
   /**
@@ -2794,6 +2949,8 @@ describe('VeraChatService — «più proteine» per una cliente', () => {
         dislikedFoods: [], allergies: [], intolerances: [], name: 'Giulia', pastiEsclusi: [], proteinMinPct,
       }),
       update: jest.fn().mockResolvedValue({}),
+      /** ⚠️ Nessuna in pausa: `chiRiceveIMenu` cerca le ferme. Vedi il finto di `make`. */
+      findMany: jest.fn().mockResolvedValue([]),
     },
     menuDay: {
       findMany: jest.fn().mockResolvedValue(giorni),
@@ -2838,27 +2995,31 @@ describe('VeraChatService — «più proteine» per una cliente', () => {
   });
 
   /**
-   * ⛔ **E SE DI QUEI GIORNI NON SAPPIAMO, L'ANTEPRIMA LO DICE** — 26/8.
+   * ⛔ **E SE DI QUEI GIORNI NON SAPPIAMO, L'ANTEPRIMA LO DICE** — 26/8, riscritto il 9/9.
    *
    * Cambiare le proteine tocca **ogni** giornata, quindi qui i colpiti sono tutti i giorni futuri:
-   * il predicato è `() => true`, e se il calendario non si può toccare lo racconta `codaDaRifare`.
-   * ⛔ Fino al 26/8 il predicato chiedeva anche «lo posso rifare?», e su una cliente di cui non
-   * sappiamo niente i colpiti erano **zero**: l'anteprima prometteva «Nessuna giornata già preparata
-   * da rifare» — un'affermazione sui suoi menu, falsa, letta da una professionista che sta per
-   * firmare una modifica.
+   * il predicato è `() => true`. ⛔ Fino al 26/8 il predicato chiedeva anche «lo posso rifare?», e su
+   * una cliente di cui non sappiamo niente i colpiti erano **zero**: l'anteprima prometteva «Nessuna
+   * giornata già preparata da rifare» — un'affermazione sui suoi menu, falsa, letta da una
+   * professionista che sta per firmare una modifica.
+   *
+   * ⚠️ Dal 9/9 quei giorni si **rifanno** (una persona ha letto e ha confermato), ma la frase resta:
+   * resta vero che non sappiamo. ⛔ La cosa che questo test difende non è mai stata «non si tocca» —
+   * è che l'anteprima non dica un fatto che non ha.
    */
-  it('⛔ con le aperture non tracciate l\'anteprima dice «non lo so», non «niente da rifare»', async () => {
+  it('⛔ con le aperture non tracciate l\'anteprima dice «non lo so», e le rifà lo stesso', async () => {
     const over = conProfilo(null, [
       { id: 'g1', clientId: 'c1', date: giornoSalvato(1), apertoDallaClienteIl: null, apertureTracciate: false, meals: [] },
     ]);
     const { service, messaggioCreate } = make(over);
     await service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
     const { testo } = ultimoAgente(messaggioCreate);
-    expect(testo).toContain('non so dirti se le ha già aperte');
+    expect(testo).toContain("Di una di queste giornate non so dirti se l'ha già aperta");
     expect(testo).not.toContain('Nessuna giornata già preparata');
+    // ⛔ E non le si dà per aperte: sarebbe un fatto inventato al posto di uno mancante.
+    expect(testo).not.toContain('già aperta in app');
     await service.parla('lucia', 'sì');
-    // ⚠️ E nel dubbio non si cancella: si rimanda una correzione, non si toglie un menu di mano.
-    expect(over.menuDay.deleteMany).not.toHaveBeenCalled();
+    expect(over.menuDay.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g1'] } } });
   });
 
   it('⚠️ se ce l\'ha già a quel valore non tocca niente', async () => {
@@ -2898,23 +3059,65 @@ describe('VeraChatService — «più proteine» per una cliente', () => {
     id, clientId: 'c1', date: giornoSalvato(fra), apertoDallaClienteIl: aperto, apertureTracciate: true, meals: [],
   });
 
-  it('⛔ con un giorno già aperto DOPO, non cancella niente — e lo dice con la data', async () => {
+  /**
+   * ⛔ **DAL 9/9 IL GIORNO APERTO IN CODA SI RIFÀ, e l'anteprima lo dice PRIMA del sì.**
+   *
+   * ⚠️ Il difetto del 24/8 resta chiuso, ed è la ragione per cui questo test guarda **quali** id
+   * spariscono e non solo che qualcosa sia sparito: si cancella la coda **intera**, `g-letto`
+   * compreso. Cancellare solo `g1` e lasciare in piedi il giorno letto più avanti è esattamente il
+   * buco permanente di allora — e sarebbe passato per un `toHaveBeenCalled`.
+   */
+  it('⛔ con un giorno già aperto DOPO, rifà la coda intera e lo dice prima del sì', async () => {
     const over = conProfilo(null, [giorno('g1', 1), giorno('g-letto', 3, new Date())]);
     const { service, messaggioCreate } = make(over);
     await service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
+    /** ⛔ Il numero sta nell'ANTEPRIMA: chi conferma deve saperlo prima, non dopo. */
+    expect(ultimoAgente(messaggioCreate).testo).toContain("1 di queste giornate l'ha già aperta in app");
     await service.parla('lucia', 'sì');
-    expect(over.menuDay.deleteMany).not.toHaveBeenCalled();
-    const [a, m, g] = giornoSalvato(3).toISOString().slice(0, 10).split('-');
-    expect(ultimoAgente(messaggioCreate).testo).toContain(`il menu del ${g}/${m}/${a} l'ha già aperto in app`);
+    expect(over.menuDay.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g1', 'g-letto'] } } });
+    /** ⛔ E a cose fatte la frase cambia tempo, non contenuto: è lo stesso numero. */
+    expect(ultimoAgente(messaggioCreate).testo).toContain("1 di queste giornate l'aveva già aperta in app");
   });
 
-  /** ⚠️ E un giorno aperto PRIMA non ferma niente: non sta nella coda, quindi non c'entra. */
-  it('⚠️ un giorno già aperto PRIMA di quelli da rifare non blocca la coda', async () => {
+  /**
+   * ⚠️ Un giorno aperto PRIMA di quelli colpiti non entra nella coda: la coda parte dal **primo
+   * colpito**, e qui i colpiti sono tutti i giorni futuri — quindi `g-letto` è colpito anche lui e
+   * ci entra. ⛔ È l'opposto del divieto, dove i colpiti sono i giorni che contengono un piatto.
+   */
+  it('⚠️ con le proteine i colpiti sono TUTTI i giorni: anche quello aperto per primo', async () => {
     const over = conProfilo(null, [giorno('g-letto', 0, new Date()), giorno('g1', 1), giorno('g2', 2)]);
     const { service } = make(over);
     await service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
     await service.parla('lucia', 'sì');
-    expect(over.menuDay.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g1', 'g2'] } } });
+    expect(over.menuDay.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g-letto', 'g1', 'g2'] } } });
+  });
+
+  /**
+   * ⛔ **SE L'AVVISO NON PARTE, NON SI DICE «L'HO AVVISATA»** — 9/9, trovato da una revisione
+   * avversariale.
+   *
+   * La frase si componeva dal solo numero delle giornate: «gliel'ho cambiata sotto e l'ho avvisata».
+   * Ma `notificaUtente` si mangia ogni errore per non far fallire il lavoro vero — giusto — e quindi
+   * quella riga affermava un avviso che poteva non esistere. ⛔ Conseguenza: Lucia legge che la
+   * cliente è stata avvisata e non la chiama; la cliente ha il menu cambiato, la spesa vecchia in
+   * frigo e nessuna notifica. Nessuno dei due lo scoprirà mai.
+   *
+   * ⚠️ E la frase non si limita a togliere «l'ho avvisata»: dice **cosa fare**. Un avviso mancato
+   * detto e basta è un'informazione; detto con «diglielo tu» è una telefonata.
+   */
+  it('⛔ se l\'avviso alla cliente non parte, la frase lo dice e chiede di chiamarla', async () => {
+    const over = conProfilo(null, [giorno('g1', 1, new Date())]);
+    const made = make(over);
+    /** ⚠️ Il database rifiuta la riga di notifica: la cancellazione dei menu è andata benissimo. */
+    (made.prisma.notification.create as jest.Mock).mockRejectedValue(new Error('database giù'));
+    await made.service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
+    await made.service.parla('lucia', 'sì');
+    // ⚠️ Il lavoro vero è il menu, e quello si fa lo stesso: un avviso non parte, non ferma niente.
+    expect(over.menuDay.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g1'] } } });
+    const { testo } = ultimoAgente(made.messaggioCreate);
+    expect(testo).toContain("l'avviso non le è arrivato");
+    expect(testo).toContain('diglielo tu');
+    expect(testo).not.toContain("l'ho avvisata");
   });
 
   /**
@@ -2937,17 +3140,50 @@ describe('VeraChatService — «più proteine» per una cliente', () => {
   });
 
   /**
-   * ⛔ **L'ANTEPRIMA DICE QUELLO CHE SUCCEDERÀ.** Prometteva «i giorni futuri che non ha ancora
-   * aperto si rifanno con la nuova quota», sempre — anche quando poi non ne rifaceva nessuno. Una
-   * conferma data su una promessa falsa è una firma su una cosa non letta.
+   * ⛔ **L'ANTEPRIMA DICE QUELLO CHE SUCCEDERÀ — e dal 9/9 è l'unica cosa che regge la decisione.**
+   *
+   * Prometteva «i giorni futuri che non ha ancora aperto si rifanno con la nuova quota», sempre —
+   * anche quando poi non ne rifaceva nessuno. Una conferma data su una promessa falsa è una firma su
+   * una cosa non letta.
+   *
+   * ⛔ Adesso vale al contrario, e pesa di più: la coda passa **anche** sui giorni che la cliente ha
+   * già in mano, quindi il sì che si dà qui può togliere di mano una lista della spesa. L'anteprima
+   * si calcola due turni prima della cancellazione (`codaProteine`, chiamata due volte): se i due
+   * conti divergessero, la nutrizionista firmerebbe un numero e ne succederebbe un altro — che è
+   * esattamente com'era scritto il difetto del 24/8, con «le giornate da rifare sono N».
+   *
+   * ⚠️ Per questo il test **confronta** i due, invece di pinzare due frasi: tre giornate con tre
+   * stati diversi (una mai aperta, una aperta, una che non sappiamo), e i tre numeri dell'anteprima
+   * devono essere quelli della cancellazione.
    */
-  it('⛔ l\'anteprima non promette di rifare i giorni se poi non li rifà', async () => {
-    const over = conProfilo(null, [giorno('g1', 1), giorno('g-letto', 3, new Date())]);
-    const { service, messaggioCreate } = make(over);
+  it('⛔ i numeri dell\'anteprima sono quelli della cancellazione, stato per stato', async () => {
+    const nonSaputo = { ...giorno('g-boh', 2), apertureTracciate: false };
+    const over = conProfilo(null, [giorno('g1', 1), nonSaputo, giorno('g-letto', 3, new Date())]);
+    const { service, messaggioCreate, prisma } = make(over);
     await service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
-    const { testo } = ultimoAgente(messaggioCreate);
-    expect(testo).toContain('Rigenera menu');
-    expect(testo).not.toMatch(/i giorni futuri che non ha ancora aperto si rifanno/);
+    const prima = ultimoAgente(messaggioCreate).testo;
+    expect(prima).toContain('Rifaccio 3 giornate');
+    expect(prima).toContain("1 di queste giornate l'ha già aperta in app");
+    expect(prima).toContain("Di altra una non so dirti se l'ha già aperta");
+
+    await service.parla('lucia', 'sì');
+    expect(over.menuDay.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g1', 'g-boh', 'g-letto'] } } });
+    const dopo = ultimoAgente(messaggioCreate).testo;
+    expect(dopo).toContain('Ho rifatto 3 giornate');
+    expect(dopo).toContain("1 di queste giornate l'aveva già aperta in app");
+    expect(dopo).toContain("Di altra una non so dirti se l'ha già aperta");
+    /**
+     * ⛔ **UN AVVISO SOLO, PER DUE GIORNATE.** ⚠️ `quanti: 2` e non 3: quella **mai aperta** resta
+     * fuori (un campanello che suona sempre si smette di guardare), mentre quella che **non
+     * sappiamo** ci entra — il giorno del rilascio sono tutte così, e trattarle come «mai aperte»
+     * vorrebbe dire cambiare i menu in silenzio proprio a chi rischia di più.
+     *
+     * ⚠️ Si guarda il `payload`, non il numero di chiamate: due avvisi separati e un avviso che ne
+     * dichiara due sono la stessa cosa per `toHaveBeenCalledTimes` e due esperienze diverse per lei.
+     */
+    expect(prisma.notification.create).toHaveBeenCalledTimes(1);
+    const payload = (prisma.notification.create as jest.Mock).mock.calls[0][0].data.payload;
+    expect(payload).toMatchObject({ giorno: nonSaputo.date.toISOString().slice(0, 10), quanti: 2 });
   });
 });
 
@@ -4312,6 +4548,10 @@ describe('⛔ VeraChatService — le ore del digiuno', () => {
    * rifare». La nutrizionista metteva Lorena a OMAD, confermava credendo che non ci fosse niente da
    * rifare, e Lorena restava con **tre pasti** in calendario e **un'ora** di finestra. Adesso questo
    * percorso racconta la coda con la stessa funzione degli altri due.
+   *
+   * ⚠️ **Dal 9/9 quella giornata si rifà**, perché Lucia ha letto l'anteprima e ha detto sì. La
+   * frase «non so dirti» resta identica: resta vero che non lo sappiamo, ed è per questo che l'app
+   * di Lorena riceve comunque l'avviso.
    */
   it('⛔ con le aperture non tracciate dice «non lo so», in anteprima e dopo', async () => {
     const { service, prisma, messaggioCreate } = make({}, {
@@ -4321,13 +4561,16 @@ describe('⛔ VeraChatService — le ore del digiuno', () => {
       ],
     });
     await service.parla('lucia', 'metti Giulia a 23:1');
-    expect(ultimoAgente(messaggioCreate).testo).toContain('non so dirti se le ha già aperte');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('non so dirti se');
     await service.parla('lucia', 'sì');
-    // ⚠️ Nel dubbio non si cancella, e soprattutto non si dice «non c'erano».
-    expect(prisma.menuDay.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.menuDay.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g1'] } } });
     const { testo } = ultimoAgente(messaggioCreate);
-    expect(testo).toContain('non so dirti se le ha già aperte');
+    expect(testo).toContain("Di una di queste giornate non so dirti se l'ha già aperta");
+    // ⛔ E mai «non c'erano»: è la frase del difetto, ed è falsa esattamente qui.
     expect(testo).not.toContain('Nessuna giornata già preparata era da rifare');
+    /** ⛔ E Lorena viene avvisata, del giorno giusto: se non sappiamo, magari ci aveva fatto la spesa. */
+    const avviso = (prisma.notification.create as jest.Mock).mock.calls[0][0].data;
+    expect((avviso.payload as { giorno: string }).giorno).toBe(giornoSalvato(1).toISOString().slice(0, 10));
   });
 
   /**

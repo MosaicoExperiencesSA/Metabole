@@ -328,3 +328,43 @@ export async function chiHaUnPianoAttivo(
   });
   return new Set(righe.map((r) => r.id));
 }
+
+/**
+ * ⛔ **«IL MOTORE RIMETTEREBBE I GIORNI CHE CANCELLO?»** — 9/9, trovata da una revisione avversariale.
+ *
+ * Cancellare **non è** rifare: `MenuService.deliverIfEligible` compone solo se il percorso lo
+ * permette, e se non lo permette la cliente resta col calendario **vuoto**. `MenuService` questa
+ * domanda se la fa già in due punti (`pianoFermato`, e il conto `quantiRimessi` di 8/9); le porte di
+ * Vera cancellano senza chiamare il motore — è la scelta che tiene `VeraModule` fuori da
+ * `MenuModule` — quindi la devono fare **prima**.
+ *
+ * ⚠️ Il caso peggiore è il piano **messo in pausa a mano** (`planHeldAt`): lì la cliente i giorni li
+ * ha di proposito, e `regenerateFromToday` si rifiuta di toccarla proprio per questo. Cancellarglieli
+ * da Vera le lascerebbe una settimana di «menu in preparazione» — con un avviso che le dice di
+ * ricontrollare la lista della spesa per giornate che non esistono più.
+ *
+ * ⚠️ **Due condizioni, e servono tutte e due**: un percorso in corso (`chiHaUnPianoAttivo`, che sa
+ * anche di `in_coda` e degli scaduti da chiudere) e nessuna pausa. Un piano attivo ma in pausa non
+ * eroga niente.
+ */
+export async function chiRiceveIMenu(
+  prisma: {
+    user: { findMany: (a: unknown) => Promise<{ id: string }[]> };
+    clientProfile: { findMany: (a: unknown) => Promise<{ userId: string }[]> };
+  },
+  clienteIds: readonly string[],
+  adesso = new Date(),
+): Promise<Set<string>> {
+  const attivi = await chiHaUnPianoAttivo(prisma, clienteIds, adesso);
+  if (!attivi.size) return attivi;
+  /**
+   * ⚠️ Si cercano le **ferme**, non le libere: `planHeldAt: null` come filtro perderebbe le righe di
+   * profilo mancanti — e una cliente senza profilo non è una cliente in pausa.
+   */
+  const ferme = await prisma.clientProfile.findMany({
+    where: { userId: { in: [...attivi] }, planHeldAt: { not: null } },
+    select: { userId: true },
+  });
+  for (const f of ferme) attivi.delete(f.userId);
+  return attivi;
+}

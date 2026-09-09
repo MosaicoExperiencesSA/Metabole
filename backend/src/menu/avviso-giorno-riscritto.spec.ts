@@ -217,7 +217,13 @@ describe('l\'avviso quando i giorni riscritti sono più d\'uno', () => {
   it('⛔ dice DA QUANDO e QUANTE, non «qualcosa è cambiato»', () => {
     const { title, body } = testoGiorniRiscritti('2026-09-12', 3, '2026-09-09');
     expect(title).toBe('Il tuo menu è cambiato da sabato 12 settembre in poi');
-    expect(body).toContain('3 giornate che avevi già aperto');
+    expect(body).toContain('Sono state riviste 3 giornate');
+    /**
+     * ⛔ **E non dice «che avevi già aperto»** (9/9): l'avviso parte anche per le giornate di cui
+     * non sappiamo, e su quelle sarebbe un fatto affermato senza averlo. La parte che serve è la
+     * seconda, ed è condizionale.
+     */
+    expect(body).not.toContain('avevi già aperto');
     expect(body).toContain('ricontrolla la lista');
   });
 
@@ -270,15 +276,39 @@ describe('l\'avviso quando i giorni riscritti sono più d\'uno', () => {
     expect(b.create).not.toHaveBeenCalled();
   });
 
-  /** ⛔ E un avviso per quello stesso primo giorno, non ancora letto, ne blocca un secondo. */
+  /** ⛔ E un avviso per quello stesso primo giorno, non ancora letto e altrettanto ampio, ne blocca un secondo. */
   it('⛔ non si suona due volte finché non l\'ha letta', async () => {
+    const { prisma, push, create } = finto();
+    (prisma as unknown as { notification: { findMany: jest.Mock } }).notification.findMany
+      .mockResolvedValue([{ payload: { giorno: '2026-09-11', quanti: 2 } }]);
+    expect(await avvisaGiorniRiscritti(prisma, push, {
+      clientId: 'c1', giorniISO: ['2026-09-11', '2026-09-12'], adesso: ADESSO,
+    })).toBe('gia_detto');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **UN AVVISO PIÙ PICCOLO NON NE COPRE UNO PIÙ GRANDE** — 9/9, trovato da una revisione
+   * avversariale.
+   *
+   * Il dedup guardava **solo** il primo giorno, e l'avviso singolo (`avvisaGiornoRiscritto`) scrive
+   * lo stesso `type` e la stessa chiave `giorno`. Conseguenza vera: alle 09:00 la nutrizionista
+   * riscrive domani a mano dalla scheda — parte l'avviso di **una** giornata; alle 09:10 detta
+   * «niente pesce» e Vera ne rifà **sette**. Il secondo avviso non partiva. La cliente leggeva «Il
+   * menu di domani è cambiato», e degli altri sei giorni — con la spesa della settimana già fatta —
+   * non sapeva niente, per sempre.
+   *
+   * ⚠️ `quanti` assente vuol dire «una»: è la forma che scrive l'avviso singolo, e le righe già in
+   * database quando questa riga è stata scritta ce l'hanno tutte così.
+   */
+  it('⛔ un avviso per UNA giornata non blocca quello per sette', async () => {
     const { prisma, push, create } = finto();
     (prisma as unknown as { notification: { findMany: jest.Mock } }).notification.findMany
       .mockResolvedValue([{ payload: { giorno: '2026-09-11' } }]);
     expect(await avvisaGiorniRiscritti(prisma, push, {
       clientId: 'c1', giorniISO: ['2026-09-11', '2026-09-12'], adesso: ADESSO,
-    })).toBe('gia_detto');
-    expect(create).not.toHaveBeenCalled();
+    })).toBe('avvisata');
+    expect(create.mock.calls[0][0].data.payload.quanti).toBe(2);
   });
 
   /** ⚠️ Stesso tipo e stesso `kind` dell'avviso singolo: dedup, icona e rotta sono scritti una volta. */

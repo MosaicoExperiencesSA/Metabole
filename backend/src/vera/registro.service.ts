@@ -22,6 +22,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { applicaProposta, EsitoApplicazione, ordinaPerRischio, Proposta } from './applica-proposta';
 import { avvisaConflittoSanitario, avvisaPropostaInCoda } from './avvisa-capo';
 import { MailService } from '../mail/mail.service';
+import { PushService } from '../notifications/push.service';
 import { casiCapiti, CasoCapito, fraseNonCapite, RigaMessaggio } from './corpus';
 import { DizionarioService } from './dizionario.service';
 import { perimetroClienti } from '../common/perimetro-clienti';
@@ -69,6 +70,12 @@ export class RegistroVeraService {
     // Il postino per l'avviso di conflitto (decisione di Simone, 13/8 sera): l'in-app da solo
     // vale finché il capo entra quel giorno. `@Optional` così i test esistenti non cambiano.
     @Optional() private readonly mail?: MailService,
+    /**
+     * ⛔ **Serve ad avvisare le CLIENTI** quando l'approvazione del capo riscrive giornate che
+     * avevano già in mano (9/9). ⚠️ `@Optional` perché le prove di questo servizio non lo passano e
+     * senza di lui l'avviso in app parte lo stesso: il push è l'aggiunta, non l'avviso.
+     */
+    @Optional() private readonly push?: PushService,
   ) {}
 
   /**
@@ -336,7 +343,7 @@ export class RegistroVeraService {
     const esito: EsitoApplicazione =
       riga.azione === 'voce_dizionario' ? await this.approvaVoceDizionario(attore, riga)
         : riga.azione === 'ricetta_nuova' || riga.azione === 'ricetta_modificata' ? await this.approvaRicetta(attore, riga)
-          : await applicaProposta(this.prisma, riga);
+          : await applicaProposta(this.prisma, riga, this.push);
 
     /**
      * ⚠️ Le SCOPERTE si scrivono anche sulla riga, non solo nel messaggio: la chat scorre, il

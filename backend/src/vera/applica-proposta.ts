@@ -22,10 +22,12 @@ import { Logger } from '@nestjs/common';
 import { combaciaAlimento } from '../common/nomi-alimento';
 import { spezzaTagAlimenti } from '../common/tag-alimenti';
 import { perimetroClienti } from '../common/perimetro-clienti';
-import { chiHaUnPianoAttivo } from '../common/piano-attivo';
+import { chiHaUnPianoAttivo, chiRiceveIMenu } from '../common/piano-attivo';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import type { PrismaService } from '../prisma/prisma.service';
-import { CAMPI_DEL_GIORNO, type GiornoDaValutare, clientiColpiti, codePerCliente, daQuandoSiPuoRifare, giorniColpitiDaiVietati } from './menu-da-rifare';
+import { avvisaGiorniRiscritti } from '../menu/avviso-giorno-riscritto';
+import type { PushService } from '../notifications/push.service';
+import { CAMPI_DEL_GIORNO, type GiornoDaValutare, clientiColpiti, codePerCliente, daQuandoSiPuoRifare, giorniColpitiDaiVietati, laClienteLHaAperto, nonSappiamoSeLHaAperto } from './menu-da-rifare';
 import { type ClienteScoperta, RULE_CODE_ESCLUSIONI, clientiScoperte, ricetteVietate, terminiVietati } from './regola-dieta';
 import { RicettaDelPool } from './pool-disponibile';
 import { aGiorno } from '../common/date-only';
@@ -73,12 +75,81 @@ export interface EsitoApplicazione {
 }
 
 /**
+ * ⛔ **CHI SI RITROVA IL MENU CAMBIATO SOTTO LO DEVE SAPERE — anche quando sono duecento.**
+ *
+ * Stesso avviso della giornata riscritta a mano e di «Rigenera menu»: la regola sta in un posto solo
+ * (`menu/avviso-giorno-riscritto.ts`), qui c'è solo chi avvisare.
+ *
+ * ⚠️ Si avvisa per le giornate **già aperte** e per quelle di cui **non sappiamo**, non per quelle
+ * che sappiamo non aperte: quelle non le aveva in mano, e un campanello che suona sempre si smette
+ * di guardare. ⛔ Il «non lo so» sta dalla parte dell'avviso: il giorno del rilascio nessuna giornata
+ * è tracciata, e trattarle come «non aperte» vorrebbe dire cambiare il menu a duecento persone **in
+ * silenzio** — che è la cosa che questa consegna ha deciso di fare *dicendola*.
+ *
+ * ⚠️ **`push` è opzionale, e senza di lui l'avviso in app parte lo stesso**: `notificaUtente` scrive
+ * la riga di notifica e il push è l'aggiunta. Serve così perché `RegistroVeraService` lo riceve
+ * `@Optional()` e i test che non lo passano continuano a valere.
+ *
+ * ⚠️ **Non ferma niente.** Il lavoro vero è il menu: se l'avviso non parte si scrive nei log e si
+ * va avanti — al contrario, un `throw` qui lascerebbe la regola scritta, i menu cancellati e la
+ * proposta non chiusa.
+ */
+async function avvisaLeClienti(
+  prisma: PrismaService,
+  push: PushService | undefined,
+  cancellati: readonly GiornoDaValutare[],
+): Promise<Set<string>> {
+  const perCliente = new Map<string, string[]>();
+  for (const g of cancellati) {
+    if (!laClienteLHaAperto(g) && !nonSappiamoSeLHaAperto(g)) continue;
+    /**
+     * ⚠️ Il giorno di una data **salvata** si legge in UTC: `MenuDay.date` è una colonna DATE a
+     * mezzanotte UTC, e rileggerla nel fuso di Roma la sposterebbe indietro di un giorno appena il
+     * fuso stesse dietro a UTC. Stessa colonna, stessa lettura di `MenuService`.
+     */
+    const giorno = g.date.toISOString().slice(0, 10);
+    const suoi = perCliente.get(g.clientId);
+    if (suoi) suoi.push(giorno);
+    else perCliente.set(g.clientId, [giorno]);
+  }
+  /**
+   * ⚠️ **Senza `push` l'avviso in app parte lo stesso.** `notificaUtente` scrive la riga di notifica
+   * e poi manda la push: passare `undefined` la farebbe fallire *dopo* la scrittura, dentro il suo
+   * `catch` muto — cioè funzionerebbe per caso. Un postino che non fa niente lo dice invece di
+   * lasciarlo dedurre.
+   */
+  const postino = push ?? { sendToUser: async () => {} };
+  /**
+   * ⛔ **CHI È STATA AVVISATA DAVVERO SI CONTA** — 9/9, in revisione. Il riepilogo diceva «le clienti
+   * sono state avvisate» sulla base del numero di **giornate**: ma `avvisaGiorniRiscritti` può
+   * rendere `passato`, può trovare un avviso identico ancora da leggere, e `notificaUtente` si mangia
+   * ogni errore. Chi approva legge quella riga per decidere se telefonare a qualcuno.
+   *
+   * ⚠️ `gia_detto` vale come avvisata: c'è già un avviso che non ha letto, un secondo non aggiunge
+   * niente.
+   */
+  const avvisate = new Set<string>();
+  for (const [clientId, giorniISO] of perCliente) {
+    try {
+      const esito = await avvisaGiorniRiscritti(prisma, postino, { clientId, giorniISO });
+      if (esito === 'avvisata' || esito === 'gia_detto') avvisate.add(clientId);
+    } catch (e) {
+      logger.warn(`Avviso «menu cambiato» non partito per ${clientId}: ${(e as Error).message}`);
+    }
+  }
+  return avvisate;
+}
+
+/**
  * Applica una proposta approvata.
  *
  * Ritorna sempre un riepilogo leggibile: è quello che il capo si vede scritto in chat e che finisce
  * nel registro, ed è l'unico modo che ha di sapere cosa ha appena fatto.
+ *
+ * ⚠️ `push` arriva da `RegistroVeraService` e serve **solo** all'avviso alle clienti a cui si
+ * riscrive una giornata che avevano già in mano (9/9). Vedi `avvisaLeClienti`.
  */
-export async function applicaProposta(prisma: PrismaService, p: Proposta): Promise<EsitoApplicazione> {
+export async function applicaProposta(prisma: PrismaService, p: Proposta, push?: PushService): Promise<EsitoApplicazione> {
   /**
    * ⚠️ `from`/`to` **e** `da`/`a`: le proposte in coda scritte prima del 31/8 hanno le prime, quelle
    * nuove le seconde. Una riga in coda può restare lì giorni, quindi le due forme convivono per
@@ -139,7 +210,7 @@ export async function applicaProposta(prisma: PrismaService, p: Proposta): Promi
   }
 
   if (p.azione === 'regola_dieta') {
-    return applicaRegolaDieta(prisma, p, dettaglio.termini ?? []);
+    return applicaRegolaDieta(prisma, p, dettaglio.termini ?? [], push);
   }
 
   return { toccate: 0, riepilogo: 'Approvata. Nessun effetto automatico per questo tipo di azione.' };
@@ -168,7 +239,13 @@ export async function applicaProposta(prisma: PrismaService, p: Proposta): Promi
  * ⚠️ *Il codice non mente mai, i commenti sì*: per questo qui i commenti dicono **perché**, e quando
  * dicono **cosa** vanno riletti insieme al codice che descrivono, non dopo.
  */
-async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: string[]): Promise<EsitoApplicazione> {
+async function applicaRegolaDieta(
+  prisma: PrismaService,
+  p: Proposta,
+  termini: string[],
+  /** ⚠️ Solo per l'avviso alle clienti: vedi `avvisaLeClienti`. */
+  push?: PushService,
+): Promise<EsitoApplicazione> {
   const puliti = [...new Set(termini.map((t) => (t ?? '').trim().toLowerCase()).filter(Boolean))];
   const dietId = p.soggettoId;
   if (!puliti.length || !dietId) {
@@ -281,23 +358,59 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
    * possono restare in fondo e riaprire il buco. Si rileggono i calendari **interi** delle sole
    * clienti colpite: sono poche, ed è una query in più contro una giornata senza cena.
    */
-  const calendari = troppe || !colpiti.length
+  const calendariGrezzi = troppe || !colpiti.length
     ? []
     : (((await prisma.menuDay.findMany({
         where: { clientId: { in: persone }, date: { gte: dal } } as never,
         select: CAMPI_DEL_GIORNO as never,
       })) ?? []) as GiornoDaValutare[]);
   /**
+   * ⛔ **CANCELLARE NON È RIFARE: a chi non riceve menu non si tocca il calendario** — 9/9, trovato
+   * da una revisione avversariale poche ore dopo aver aperto le cinque porte.
+   *
+   * Qui non si chiama il motore (è la scelta che tiene `VeraModule` fuori da `MenuModule`): i giorni
+   * li ricompone `deliverIfEligible` al suo giro, **se il percorso lo permette**. Se è finito o messo
+   * in pausa a mano non compone niente, e la cancellazione non lascia un menu rimescolato — lascia il
+   * **calendario vuoto**, con un avviso che le dice di ricontrollare la lista della spesa per
+   * giornate che non esistono più. Vedi `chiRiceveIMenu`.
+   *
+   * ⚠️ **Si filtrano i calendari, non i colpiti**: la coda si taglia su tutto quello che la cliente
+   * ha in agenda, e togliere righe a metà darebbe una coda che coda non è. Chi non riceve menu esce
+   * intera, con tutte le sue giornate.
+   *
+   * ⚠️ E si **contano**: chi approva deve sapere che per N clienti i giorni vecchi restano com'erano.
+   * La riga sopra (`saltate`) conta chi non ha un percorso e non riceve nemmeno la regola; questa
+   * conta chi la regola ce l'ha e i menu vecchi no. Sono due cose diverse e si dicono in due frasi.
+   */
+  const riceveIMenu = calendariGrezzi.length
+    ? await chiRiceveIMenu(prisma as never, [...new Set(calendariGrezzi.map((g) => g.clientId))])
+    : new Set<string>();
+  const calendari = calendariGrezzi.filter((g) => riceveIMenu.has(g.clientId));
+  const senzaPercorsoInCorso = new Set(
+    calendariGrezzi.filter((g) => !riceveIMenu.has(g.clientId)).map((g) => g.clientId),
+  ).size;
+  /**
    * ⚠️ Il predicato è «questo giorno è fra i colpiti che ho appena trovato»: gli id arrivano dalla
    * query filtrata, la coda si calcola sul **calendario intero**. Sono due letture diverse della
    * stessa riga, ed è l'id a tenerle insieme.
    */
   const idColpiti = new Set(colpiti.map((g) => g.id));
-  const { daCancellare, bloccate, nonSapute, lasciatiIndietro } = codePerCliente(calendari, (g: GiornoDaValutare) => idColpiti.has(g.id));
+  /**
+   * ⛔ **IL CAPO HA APPROVATO, e la sua approvazione È la conferma** — 9/9, l'ultima delle cinque
+   * porte. ⚠️ Qui il gesto è uno solo e le clienti sono fino a duecento: il conto di quante giornate
+   * già aperte si stanno rifacendo torna nel messaggio, e a ognuna di loro parte l'avviso.
+   */
+  const { daCancellare, bloccate, nonSapute, lasciatiIndietro, apertiRifatti, nonSaputiRifatti } = codePerCliente(
+    calendari,
+    (g: GiornoDaValutare) => idColpiti.has(g.id),
+    { unaPersonaHaLetto: true },
+  );
   /** Chi ha avuto i menu rifatti **davvero**: non chi era colpita, non chi è rimasta bloccata. */
   const rifatte = clientiColpiti(daCancellare);
+  let avvisate = new Set<string>();
   if (daCancellare.length) {
     await prisma.menuDay.deleteMany({ where: { id: { in: daCancellare.map((g) => g.id) } } });
+    avvisate = await avvisaLeClienti(prisma, push, daCancellare);
   }
 
   /**
@@ -331,6 +444,53 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
     ? ` ⚠️ Di ${nonSapute.length} ${nonSapute.length === 1 ? 'cliente' : 'clienti'} non so dire se ` +
       `${nonSapute.length === 1 ? 'ha' : 'hanno'} già aperto i giorni preparati (app non ancora aggiornata): ` +
       'nel dubbio li ho lasciati come sono. Si rifanno con «Rigenera menu» dalla scheda.'
+    : '';
+
+  /**
+   * ⛔ **QUANTE DI QUELLE RIFATTE ERANO GIÀ IN MANO A QUALCUNA — 9/9, e il capo lo legge.**
+   *
+   * ⚠️ Qui il gesto è **uno** e le persone sono fino a duecento: chi approva non vede le clienti una
+   * per una, quindi il numero è l'unica cosa che gli dice quanto pesa il sì che ha appena dato. Un
+   * riepilogo che dicesse solo «rifatte 40 giornate (12 clienti)» nasconderebbe che di quelle 40
+   * nove erano già state aperte — cioè nove spese già fatte.
+   *
+   * ⚠️ E il terzo stato resta terzo anche qui: `nonSaputiRifatti` non si somma alle aperte. Dire «le
+   * ha già aperte» di una giornata che non sappiamo è inventare un fatto, e questo file quell'errore
+   * l'ha già fatto due volte (vedi `codaNonSapute` qui sopra).
+   */
+  /**
+   * ⚠️ **«Avvisate» si dice solo di chi lo è stata davvero.** `avvisaLeClienti` rende l'elenco, e chi
+   * manca ci va scritto col nome del problema: chi approva legge questa riga per decidere se
+   * telefonare a qualcuno. Vedi il conto in `avvisaLeClienti`.
+   */
+  const daAvvisare = new Set(
+    daCancellare
+      .filter((g) => laClienteLHaAperto(g) || nonSappiamoSeLHaAperto(g))
+      .map((g) => g.clientId),
+  );
+  const nonRaggiunte = [...daAvvisare].filter((c) => !avvisate.has(c)).length;
+  const avvisoDetto = nonRaggiunte
+    ? ` ⚠️ A ${nonRaggiunte} di loro l'avviso NON è partito: vanno sentite a voce.`
+    : ' Le clienti sono state avvisate.';
+  const codaAperte = apertiRifatti
+    ? ` ⚠️ ${apertiRifatti === 1 ? 'Una di quelle giornate era già stata aperta' : `${apertiRifatti} di quelle giornate erano già state aperte`} ` +
+      'in app.'
+    : '';
+  const codaNonSaputi = nonSaputiRifatti
+    ? ` ⚠️ ${nonSaputiRifatti === 1 ? 'Di un\'altra non so dire se fosse stata aperta' : `Di altre ${nonSaputiRifatti} non so dire se fossero state aperte`} ` +
+      '(app non ancora aggiornata): le ho rifatte lo stesso.'
+    : '';
+  /** ⚠️ La riga sull'avviso si scrive una volta sola, e solo se c'era qualcuno da avvisare. */
+  const codaAvvisi = daAvvisare.size ? avvisoDetto : '';
+  /**
+   * ⛔ **E CHI NON RICEVE MENU SI DICE**: la regola vale, i suoi giorni vecchi no. Tacerlo farebbe
+   * leggere «fatto» su clienti che hanno ancora il piatto vietato in calendario — e che se lo
+   * ritroveranno il giorno che il percorso riparte.
+   */
+  const codaSenzaPercorso = senzaPercorsoInCorso
+    ? ` ⚠️ Per ${senzaPercorsoInCorso} ${senzaPercorsoInCorso === 1 ? 'cliente' : 'clienti'} i giorni già ` +
+      'preparati li ho lasciati come sono: il percorso non è in corso (finito, o in pausa) e il motore '
+      + 'non li rimetterebbe. La regola vale lo stesso appena riparte.'
     : '';
 
   const coda =
@@ -372,7 +532,8 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
             // cui una inventata.
             ? ''
             : ' ⚠️ Non ho potuto rifare nessuna giornata: quelle colpite non ci sono più (le avrà rifatte ' +
-              'qualcos\'altro nel frattempo). La regola vale lo stesso da adesso.') + codaBloccate + codaNonSapute;
+              'qualcos\'altro nel frattempo). La regola vale lo stesso da adesso.')
+    + codaAperte + codaNonSaputi + codaAvvisi + codaSenzaPercorso + codaBloccate + codaNonSapute;
 
   const MAX_NOMI = 10;
   const elenco = scoperte

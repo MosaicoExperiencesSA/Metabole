@@ -20,6 +20,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-09
 
+- `[Sviluppo]` ⛔ **Le cinque porte di Vera passano anche sui menu che la cliente ha già aperto** —
+  decisione di Simone dell'8/9 (*«il nutrizionista sostituisce anche se il cliente ha già visto.
+  Vince su tutto»*, con **una** conferma sola) estesa il 9 al divieto dettato in chat, «togli lo
+  spuntino», «rifai con più proteine», le ore del digiuno e la regola di dieta approvata dal capo.
+  Prima un giorno già aperto fermava tutto: Lucia dettava «niente pesce», il branzino era nel menu di
+  domani, e le si indicava «Rigenera menu» — che quel giorno lo salta a sua volta.
+  ⚠️ **L'opzione (`unaPersonaHaLetto`) sta spenta di suo**: i tre script che chiamano la stessa
+  funzione girano da soli, e una passata automatica che riscrive il menu di chi ha appena fatto la
+  spesa è un'altra cosa. Lo tiene fermo una sentinella nuova, `una-persona-ha-letto.spec.ts`, che i
+  chiamanti li conta sul codice.
+  ⛔ **Le due cose che tengono in piedi la decisione**: il numero delle giornate già aperte si dice
+  **prima** del sì (i divieti erano l'unica porta che lo diceva solo dopo), e la cliente viene
+  avvisata — stesso avviso di «Scrivi il menu a mano» e «Rigenera menu», una regola sola.
+  ⚠️ **Il terzo stato sopravvive**: le giornate di cui non sappiamo (app vecchia — il giorno del
+  rilascio sono tutte) si rifanno, si contano **a parte** e si avvisano. Sommarle alle aperte
+  direbbe «le ha già aperte» di giornate di cui non sappiamo niente.
+
+- `[Sviluppo]` ⛔ **Cinque difetti chiusi dalla revisione avversariale prima di consegnare**, e il
+  primo era il più grave. **Cancellare non è rifare**: Vera cancella e basta, i giorni li rimette il
+  motore, e su una cliente col piano in pausa il motore non rimette niente — le sparivano anche le
+  giornate già lette, restava con lo schermo vuoto per una settimana e con un avviso che le diceva di
+  ricontrollare la lista della spesa per giornate che non esistono più. Adesso le cinque porte
+  chiedono `chiRiceveIMenu` **prima**, ed è un quinto esito che l'anteprima racconta.
+  ⛔ **Un avviso piccolo ne soffocava uno grande**: il dedup guardava solo il primo giorno, quindi un
+  avviso per **una** giornata non letta bloccava quello per **sette** che partiva dieci minuti dopo.
+  ⛔ **«L'ho avvisata» era un'affermazione senza fatto**: `notificaUtente` si mangia ogni errore e
+  rendeva `void`. Adesso dice se la riga è stata scritta, e se l'avviso non è partito si legge
+  «diglielo tu, se ha già fatto la spesa» — una telefonata invece di un'informazione.
+  ⚠️ Più l'avviso che stava dentro il `try` che decide se dire «fatto», e **due ragioni false** nei
+  commenti («nove chiamanti, fra cui il giro notturno» — che `codaDaRifare` non la chiama affatto).
+
 - `[Sviluppo]` ⛔ **«Rigenera menu» non tocca il giorno che la cliente ha gia aperto** — decisione di
   Simone: *«rigenera menu deve rifare solo quelli futuri»*, precisata in *«oggi si rifa se non l'ha
   aperto»*. `regenerateFromToday` cancellava **da oggi incluso, sempre**: il menu che lei sta

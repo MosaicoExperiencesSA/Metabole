@@ -320,6 +320,30 @@ export type CodaDaRifare =
     daQuando: Date;
     lasciatiIndietro: number;
     /**
+     * ⛔ **Quante di queste giornate la cliente le aveva GIÀ APERTE** — 9/9, con
+     * `unaPersonaHaLetto`. Zero quando l'opzione è spenta, perché in quel caso una giornata aperta
+     * la coda non la contiene proprio.
+     *
+     * ⚠️ Si conta e si **dice**: è il numero su cui chi ha dettato la frase decide se confermare, e
+     * quello che fa partire l'avviso alla cliente. Rifarle in silenzio sarebbe la stessa cosa che
+     * questa consegna esiste per togliere, spostata di un passo.
+     */
+    apertiRifatti: number;
+    /**
+     * ⛔ **Quante di queste giornate NON POSSIAMO SAPERE se le aveva aperte** — e si rifanno lo
+     * stesso, perché una persona ha letto e ha confermato.
+     *
+     * ⚠️ **È il terzo stato, e sopravvive anche qui.** Sommarlo ad `apertiRifatti` direbbe a chi
+     * conferma «le ha già aperte» di giornate di cui non sappiamo niente; lasciarlo cadere nello
+     * zero direbbe «non le aveva aperte», che è la bugia da cui nasce tutto questo file. Sono due
+     * numeri perché sono due frasi diverse, e chi conferma ha diritto a sapere quale sta leggendo.
+     *
+     * ⚠️ Il giorno del rilascio **tutte** le giornate stanno qui: `apertureTracciate` si scrive alla
+     * nascita della giornata, e le vecchie non ce l'hanno. Una frase che non le nomina lascerebbe
+     * l'intera prima settimana senza avviso.
+     */
+    nonSaputiRifatti: number;
+    /**
      * ⛔ **Le giornate SCRITTE A MANO che sono state tolte dalla coda** (3/9). Non bloccano — la
      * coda va avanti — ma non si cancellano: dentro c'è il lavoro di una persona.
      *
@@ -336,7 +360,22 @@ export type CodaDaRifare =
    * aperto (app vecchia, o giornata composta prima che il suo telefono mandasse il segnale). ⛔ Chi
    * racconta questo esito deve dire «non lo so», mai «non ce n'era».
    */
-  | { esito: 'non_lo_so'; daQuando: Date; dalGiorno: Date };
+  | { esito: 'non_lo_so'; daQuando: Date; dalGiorno: Date }
+  /**
+   * ⛔ **NON SI CANCELLA PERCHÉ IL MOTORE NON RIMETTEREBBE NIENTE** — 9/9, trovato da una revisione
+   * avversariale. ⚠️ **Questo esito `codaDaRifare` non lo produce mai**: lo mette chi chiama, prima
+   * di guardare il calendario, quando `chiRiceveIMenu` dice che quella cliente non riceve menu
+   * (percorso finito, o in pausa a mano).
+   *
+   * Sta **qui** e non dentro il servizio perché la domanda è la stessa — «cosa succede ai giorni già
+   * preparati?» — e la risposta la racconta `raccontaCoda` insieme alle altre quattro. Un sesto stato
+   * scritto a parte in ognuna delle cinque porte è il modo in cui una di loro, fra un mese, cancella
+   * lo stesso.
+   *
+   * ⛔ E non è `'niente'`: «non c'era niente da rifare» è un'affermazione sui suoi menu, falsa proprio
+   * qui — il piatto vietato in calendario c'è eccome, e ci resta.
+   */
+  | { esito: 'piano_fermo' };
 
 export function quanteDaRifare(coda: CodaDaRifare): number {
   return coda.esito === 'coda' ? coda.giorni.length : 0;
@@ -345,7 +384,39 @@ export function quanteDaRifare(coda: CodaDaRifare): number {
 /** «Questo giorno è colpito dalla decisione?» — la seconda domanda, che cambia da azione ad azione. */
 export type Colpito = (g: GiornoDaValutare) => boolean;
 
-export function codaDaRifare(tuttiIGiorni: readonly GiornoDaValutare[], colpito: Colpito): CodaDaRifare {
+/**
+ * ⛔ **QUANDO UNA PERSONA HA LETTO E HA CONFERMATO** — decisione di Simone, 8/9: *«il nutrizionista
+ * sostituisce anche se il cliente ha già visto. Vince su tutto»*, estesa il 9/9 alle cinque porte
+ * di Vera.
+ *
+ * ⚠️ **È un'opzione, e sta spenta di suo, perché i chiamanti non sono tutti gesti umani.** Quattro
+ * sono gesti — una nutrizionista che detta una frase, legge un'anteprima e dice sì; il capo che
+ * approva una regola di dieta — e **tre sono script che girano da soli**: `rifai:giorni-non-sicuri`,
+ * `rifai:giornate-troppi-pasti`, il collaudo. Accendere la regola qui dentro per tutti vorrebbe dire
+ * che una passata riscrive il menu che una cliente ha in mano **senza che nessuno abbia letto
+ * niente**: è la differenza fra un gesto e un automatismo, ed è la stessa riga che il progetto
+ * ripete da settimane.
+ *
+ * ⚠️ **Il conto sopra è stato sbagliato una volta** (9/9, in revisione): diceva «nove chiamanti» e
+ * nominava «il giro notturno», che `codaDaRifare` non la chiama affatto — la rierogazione automatica
+ * si taglia la coda per conto suo. Chi fosse andato a controllare «il giro notturno ha ereditato
+ * l'opzione?» avrebbe cercato una cosa che non c'è e concluso che la sua grep era rotta. La
+ * sentinella che tiene fermo l'elenco vero è `una-persona-ha-letto.spec.ts`, che i chiamanti li
+ * conta sul codice invece di crederci.
+ *
+ * ⚠️ **Le giornate scritte a mano restano fuori lo stesso**: sono un'altra regola (il lavoro di una
+ * persona), e questa opzione non la tocca.
+ */
+export interface OpzioniCoda {
+  /** `true` solo dai percorsi in cui una persona ha letto la conseguenza e ha confermato. */
+  unaPersonaHaLetto?: boolean;
+}
+
+export function codaDaRifare(
+  tuttiIGiorni: readonly GiornoDaValutare[],
+  colpito: Colpito,
+  opzioni: OpzioniCoda = {},
+): CodaDaRifare {
   /**
    * ⛔ **UNA CLIENTE PER VOLTA, e qui si urla invece di indovinare** (24/8, in revisione).
    *
@@ -372,7 +443,11 @@ export function codaDaRifare(tuttiIGiorni: readonly GiornoDaValutare[], colpito:
    * ⚠️ Gli intoccabili si cercano su **tutto** il calendario passato, non solo fra i colpiti: quello
    * che chiude la coda può benissimo essere un giorno che col divieto non c'entra niente.
    */
-  const intoccabili = tuttiIGiorni.filter((g) => !siPuoCancellare(g));
+  /**
+   * ⛔ **Con `unaPersonaHaLetto` nessun giorno è intoccabile**: chi ha confermato ha deciso, e la
+   * coda arriva fino in fondo. Senza, vale la regola di sempre.
+   */
+  const intoccabili = opzioni.unaPersonaHaLetto ? [] : tuttiIGiorni.filter((g) => !siPuoCancellare(g));
   const ultimoIntoccabile = intoccabili.length ? Math.max(...intoccabili.map(quando)) : -Infinity;
 
   const daRifare = colpiti.filter((g) => quando(g) > ultimoIntoccabile);
@@ -420,6 +495,14 @@ export function codaDaRifare(tuttiIGiorni: readonly GiornoDaValutare[], colpito:
     daQuando,
     lasciatiIndietro: colpiti.length - daRifare.length,
     tenuteAMano: aMano.length,
+    /** ⚠️ Si contano DENTRO la coda vera, non fra i colpiti: sono quelle che si stanno rifacendo. */
+    apertiRifatti: coda.filter(laClienteLHaAperto).length,
+    /**
+     * ⚠️ **E chi l'ha aperta davvero non si conta due volte**: `nonSappiamoSeLHaAperto` guarda
+     * `apertureTracciate`, e una giornata non tracciata su cui è arrivata un'apertura sarebbe in
+     * tutti e due i numeri. Fra i due vince il fatto: se il telefono ce l'ha detto, l'ha aperta.
+     */
+    nonSaputiRifatti: coda.filter((g) => !laClienteLHaAperto(g) && nonSappiamoSeLHaAperto(g)).length,
   };
 }
 
@@ -439,7 +522,16 @@ export function codaDaRifare(tuttiIGiorni: readonly GiornoDaValutare[], colpito:
 export function codePerCliente(
   tuttiIGiorni: readonly GiornoDaValutare[],
   colpito: Colpito,
-): { daCancellare: GiornoDaValutare[]; bloccate: string[]; nonSapute: string[]; lasciatiIndietro: number } {
+  /** ⚠️ Passata pari pari a `codaDaRifare`: la regola sta là, qui si gira solo per persona. */
+  opzioni: OpzioniCoda = {},
+): {
+  daCancellare: GiornoDaValutare[];
+  bloccate: string[];
+  nonSapute: string[];
+  lasciatiIndietro: number;
+  apertiRifatti: number;
+  nonSaputiRifatti: number;
+} {
   const perCliente = new Map<string, GiornoDaValutare[]>();
   for (const g of tuttiIGiorni) {
     const suoi = perCliente.get(g.clientId);
@@ -457,13 +549,19 @@ export function codePerCliente(
    * alla stessa domanda, e uno dei due aveva perso il dato per strada.
    */
   let lasciatiIndietro = 0;
+  /** ⚠️ Quante giornate già aperte si stanno rifacendo, sommate su tutte: è il numero che il capo legge. */
+  let apertiRifatti = 0;
+  /** ⚠️ E quante non sappiamo — il terzo stato, che qui sopravvive come sopravvive in `codaDaRifare`. */
+  let nonSaputiRifatti = 0;
   for (const [clientId, suoi] of perCliente) {
-    const esito = codaDaRifare(suoi, colpito);
+    const esito = codaDaRifare(suoi, colpito, opzioni);
     if (esito.esito === 'coda') {
       daCancellare.push(...esito.giorni);
       lasciatiIndietro += esito.lasciatiIndietro;
+      apertiRifatti += esito.apertiRifatti;
+      nonSaputiRifatti += esito.nonSaputiRifatti;
     } else if (esito.esito === 'bloccata') bloccate.push(clientId);
     else if (esito.esito === 'non_lo_so') nonSapute.push(clientId);
   }
-  return { daCancellare, bloccate, nonSapute, lasciatiIndietro };
+  return { daCancellare, bloccate, nonSapute, lasciatiIndietro, apertiRifatti, nonSaputiRifatti };
 }

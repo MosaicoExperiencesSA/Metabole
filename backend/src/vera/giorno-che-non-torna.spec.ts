@@ -413,3 +413,101 @@ describe('la coda non porta via il lavoro scritto a mano', () => {
     expect(esito.tenuteAMano).toBe(0);
   });
 });
+
+/**
+ * ⛔ **«VINCE SU TUTTO»: L'OPZIONE CHE APRE LA CODA SUI GIORNI GIÀ APERTI** — decisione di Simone
+ * (8/9), estesa il 9/9 alle cinque porte di Vera.
+ *
+ * Qui ci sono i tre fatti di `codaDaRifare` che quella decisione porta con sé, e che nessun test
+ * teneva fermi: che l'opzione **spenta** si comporti come sempre, che accesa la coda arrivi in fondo,
+ * e che i due contatori sappiano dire **quale** dei tre stati stanno contando.
+ *
+ * ⛔ I contatori non sono un dettaglio di comodo: sono il numero che la nutrizionista legge prima di
+ * dire sì e quello che fa partire l'avviso alla cliente. Se sbagliano, la decisione diventa «cambio i
+ * menu di nascosto» — cioè un'altra decisione.
+ *
+ * ⚠️ Chi PUÒ accendere l'opzione lo tiene fermo `una-persona-ha-letto.spec.ts`: è una proprietà
+ * dell'insieme dei chiamanti, non di questa funzione.
+ */
+describe('⛔ «una persona ha letto»: la coda passa anche sui giorni già aperti', () => {
+  const aperto = (id: string, data: string) => ({ ...g({ id, date: data }), apertoDallaClienteIl: new Date('2026-08-20T10:00:00.000Z') });
+  const nonSaputo = (id: string, data: string) => ({ ...g({ id, date: data }), apertureTracciate: false });
+
+  /** ⚠️ Spenta, la regola è quella di sempre: il giorno aperto in fondo ferma tutto. */
+  it('⚠️ spenta, un giorno già aperto in coda blocca — come prima del 9/9', () => {
+    const cal = [g({ id: '24', date: '2026-08-24' }), aperto('25', '2026-08-25')];
+    expect(codaDaRifare(cal, sono([cal[0]])).esito).toBe('bloccata');
+  });
+
+  it('⛔ accesa, la coda arriva in fondo e si porta via anche il giorno aperto', () => {
+    const cal = [g({ id: '24', date: '2026-08-24' }), aperto('25', '2026-08-25')];
+    const coda = codaDaRifare(cal, sono([cal[0]]), { unaPersonaHaLetto: true });
+    expect(coda.esito).toBe('coda');
+    if (coda.esito !== 'coda') return;
+    expect(coda.giorni.map((x) => x.id)).toEqual(['24', '25']);
+    expect(coda.apertiRifatti).toBe(1);
+    /** ⚠️ E niente resta indietro: dirlo sarebbe falso, e manderebbe a cercare un piatto che non c'è. */
+    expect(coda.lasciatiIndietro).toBe(0);
+  });
+
+  /**
+   * ⛔ **E ANCHE SUI GIORNI CHE NON SAPPIAMO** — è il caso del giorno del rilascio, quando
+   * `apertureTracciate` è falso su **ogni** riga esistente. ⚠️ Ma si contano a parte: dire «le ha già
+   * aperte» di una giornata di cui non sappiamo niente è inventare un fatto, ed è la bugia da cui
+   * nasce tutto `menu-da-rifare.ts`.
+   */
+  it('⛔ accesa, passa anche sui «non lo so» — e li conta SEPARATI dagli aperti', () => {
+    const cal = [g({ id: '24', date: '2026-08-24' }), aperto('25', '2026-08-25'), nonSaputo('26', '2026-08-26')];
+    const coda = codaDaRifare(cal, sono([cal[0]]), { unaPersonaHaLetto: true });
+    if (coda.esito !== 'coda') throw new Error(`atteso «coda», arrivato «${coda.esito}»`);
+    expect(coda.giorni.map((x) => x.id)).toEqual(['24', '25', '26']);
+    expect(coda.apertiRifatti).toBe(1);
+    expect(coda.nonSaputiRifatti).toBe(1);
+    /** ⚠️ Il giorno mai aperto non sta in nessuno dei due: è quello per cui non c'è niente da dire. */
+    expect(coda.apertiRifatti + coda.nonSaputiRifatti).toBe(2);
+  });
+
+  /**
+   * ⛔ **E CHI L'HA APERTO DAVVERO NON SI CONTA DUE VOLTE.** Una giornata non tracciata su cui è poi
+   * arrivata un'apertura soddisfa tutt'e due le domande: fra i due vince **il fatto**, perché
+   * «l'ha aperta» è un'informazione e «non lo so» è la sua assenza. Contandola due volte, la frase
+   * direbbe due numeri per una giornata sola.
+   */
+  it('⛔ una giornata non tracciata ma APERTA conta una volta, fra gli aperti', () => {
+    const cal = [{ ...aperto('24', '2026-08-24'), apertureTracciate: false }];
+    const coda = codaDaRifare(cal, sono(cal), { unaPersonaHaLetto: true });
+    if (coda.esito !== 'coda') throw new Error(`atteso «coda», arrivato «${coda.esito}»`);
+    expect(coda.apertiRifatti).toBe(1);
+    expect(coda.nonSaputiRifatti).toBe(0);
+  });
+
+  /**
+   * ⛔ **LE GIORNATE SCRITTE A MANO RESTANO FUORI LO STESSO**: sono un'altra regola — il rispetto per
+   * il lavoro di una persona — e questa opzione non la tocca. ⚠️ Confonderle vorrebbe dire che la
+   * nutrizionista detta «niente pesce» e si cancella la giornata che ha appena composto a mano.
+   */
+  it('⛔ accesa, NON tocca le giornate scritte a mano', () => {
+    const aMano = { ...g({ id: '25', date: '2026-08-25' }), meals: [{ slot: 'lunch', scrittaAMano: { origine: 'nutrizionista' } }] };
+    const cal = [g({ id: '24', date: '2026-08-24' }), aMano];
+    const coda = codaDaRifare(cal, sono([cal[0]]), { unaPersonaHaLetto: true });
+    if (coda.esito !== 'coda') throw new Error(`atteso «coda», arrivato «${coda.esito}»`);
+    expect(coda.giorni.map((x) => x.id)).toEqual(['24']);
+    expect(coda.tenuteAMano).toBe(1);
+  });
+
+  /** ⚠️ E su più clienti i due contatori si sommano: è il numero che legge il capo nutrizionista. */
+  it('⚠️ su più clienti i due contatori si sommano, ognuno per conto suo', () => {
+    const cal = [
+      { ...aperto('a1', '2026-08-24'), clientId: 'anna' },
+      { ...nonSaputo('b1', '2026-08-24'), clientId: 'bea' },
+      { ...g({ id: 'b2', date: '2026-08-25' }), clientId: 'bea' },
+    ];
+    const esito = codePerCliente(cal, () => true, { unaPersonaHaLetto: true });
+    expect(esito.daCancellare.map((x) => x.id).sort()).toEqual(['a1', 'b1', 'b2']);
+    expect(esito.apertiRifatti).toBe(1);
+    expect(esito.nonSaputiRifatti).toBe(1);
+    /** ⛔ E nessuna resta bloccata: l'opzione toglie i due «no» dal giro. */
+    expect(esito.bloccate).toEqual([]);
+    expect(esito.nonSapute).toEqual([]);
+  });
+});

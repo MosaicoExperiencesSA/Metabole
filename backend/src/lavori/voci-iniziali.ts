@@ -83,6 +83,46 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'vera-vince-su-tutto',
+    categoria: CODICE,
+    ordine: 0,
+    fatta: true,
+    nata: '2026-09-09T14:00',
+    priorita: 'alta',
+    titolo: '✅ Le cinque porte di Vera passano anche sui menu che la cliente ha gia aperto',
+    dettaglio:
+      'Decisione di Simone (8/9): «il nutrizionista sostituisce anche se il cliente ha gia visto. '
+      + 'Vince su tutto», con UNA conferma sola — estesa il 9/9 alle cinque porte di Vera: il divieto '
+      + 'dettato in chat, «togli lo spuntino», «rifai con piu proteine», le ore del digiuno, la regola '
+      + 'di dieta approvata dal capo.\n\n'
+      + '⛔ Prima un giorno gia aperto fermava tutto: Lucia dettava «niente pesce», il branzino era nel '
+      + 'menu di domani, e le si indicava «Rigenera menu» — che quel giorno lo salta a sua volta. La '
+      + 'regola valeva sui menu nuovi e il piatto vietato restava in quello di stasera.\n\n'
+      + '⚠️ **L\'opzione sta SPENTA di suo**: i tre script che chiamano la stessa funzione girano da '
+      + 'soli, e una passata automatica che riscrive il menu di chi ha appena fatto la spesa e un\'altra '
+      + 'cosa. Lo tiene fermo una sentinella nuova che i chiamanti li conta sul codice.\n\n'
+      + '✅ Le due cose che tengono in piedi la decisione: il numero delle giornate gia aperte si dice '
+      + 'PRIMA del si (i divieti erano l\'unica porta che lo diceva solo dopo), e la cliente viene '
+      + 'avvisata — stesso avviso di «Scrivi il menu a mano» e «Rigenera menu».\n\n'
+      + '⚠️ Il terzo stato sopravvive: le giornate di cui NON sappiamo (app vecchia — il giorno del '
+      + 'rilascio sono tutte) si rifanno, si contano a parte e si avvisano. Sommarle alle aperte '
+      + 'direbbe «le ha gia aperte» di giornate di cui non sappiamo niente.\n\n'
+      + '⛔ Dalla revisione avversariale, cinque difetti: CANCELLARE NON E RIFARE — su una cliente col '
+      + 'piano in pausa il motore non rimette niente, e le sparivano anche le giornate gia lette '
+      + '(adesso si chiede `chiRiceveIMenu` prima, ed e un quinto esito che l\'anteprima racconta) · UN '
+      + 'AVVISO PICCOLO NE SOFFOCAVA UNO GRANDE (il dedup guardava solo il primo giorno: uno per una '
+      + 'giornata bloccava quello per sette) · «L\'HO AVVISATA» ERA UN\'AFFERMAZIONE SENZA FATTO '
+      + '(`notificaUtente` rendeva `void` e si mangia ogni errore) · l\'avviso stava dentro il `try` '
+      + 'che decide se dire «fatto» · due ragioni false nei commenti, fra cui «il giro notturno», che '
+      + '`codaDaRifare` non la chiama affatto.\n\n'
+      + '⚠️ RESTA APERTO: l\'approvazione del capo fa fino a ~800 query e 200 push dentro la sua '
+      + 'richiesta HTTP (andrebbe in coda) · l\'anteprima delle proteine e del digiuno, se la lettura '
+      + 'dei giorni fallisce, non degrada come le altre due.\n\n'
+      + '⚠️ Misurato: backend 481 suite / 8296 prove (verdi anche con test:notte), dodici mutazioni '
+      + 'uccise. Nessuna migrazione.',
+  },
+
+  {
     chiave: 'rigenera-menu-non-tocca-oggi-aperto',
     categoria: CODICE,
     ordine: 0,

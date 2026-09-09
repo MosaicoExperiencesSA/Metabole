@@ -47,13 +47,24 @@ export const KIND_GIORNO_RISCRITTO = 'menu_giorno_cambiato';
  * ⚠️ **Non nomina chi l'ha riscritto.** La rotta la possono usare nutrizionista, capo nutrizionista
  * e admin: scrivere «la tua nutrizionista» sarebbe vero quasi sempre e falso qualche volta, e una
  * notifica che dice il falso su chi ha toccato il suo menu è peggio di una che non lo dice.
+ *
+ * ⛔ **E NON DICE «dopo che l'avevi già aperta» — corretto il 9/9.** Diceva così perché fino all'8
+ * partiva solo per giornate che sapevamo aperte. Con le porte di Vera parte anche per quelle di cui
+ * **non sappiamo** (app vecchia: il giorno del rilascio sono tutte), e su quelle la frase afferma un
+ * fatto che non abbiamo — a lei, sul suo menu.
+ *
+ * ⚠️ **Il testo è UNO per tutti i chiamanti, e per due di loro la frase era vera.** Si è tolta lo
+ * stesso: un testo condiviso può dire solo quello che vale per tutti quelli che lo mandano, e
+ * l'alternativa — un parametro «lo sappiamo o no» da passare per cinque punti — è la strada per cui
+ * fra un mese uno dei cinque lo passa sbagliato e nessuno se ne accorge. ⚠️ Non si perde niente: la
+ * parte che serve è la seconda, ed è già condizionale — «**se** avevi già fatto la spesa».
  */
 export function testoGiornoRiscritto(dataISO: string, oggiISO: string): { title: string; body: string } {
   const quando = etichettaGiorno(dataISO, oggiISO);
   return {
     title: `Il menu di ${quando} è cambiato`,
     body:
-      'Quella giornata è stata rivista dopo che l\'avevi già aperta. '
+      'Quella giornata è stata rivista. '
       + 'Se avevi già fatto la spesa, ricontrolla la lista: qualche ingrediente può essere diverso.',
   };
 }
@@ -62,7 +73,7 @@ export function testoGiornoRiscritto(dataISO: string, oggiISO: string): { title:
  * ⚠️ **Cosa è successo davvero**, perché chi ha appena scritto il menu deve poterlo dire senza
  * indovinare: la coda che legge la nutrizionista cambia a seconda che l'avviso sia partito o no.
  */
-export type Esito = 'avvisata' | 'gia_detto' | 'passato';
+export type Esito = 'avvisata' | 'gia_detto' | 'passato' | 'non_partito';
 
 /**
  * Avvisa la cliente che una sua giornata è stata riscritta.
@@ -107,14 +118,15 @@ export async function avvisaGiornoRiscritto(
   if (giaDetto) return 'gia_detto';
 
   const { title, body } = testoGiornoRiscritto(input.dataISO, oggiISO);
-  await notificaUtente(prisma, push, {
+  /** ⛔ «Avvisata» solo se la riga è stata scritta davvero: vedi il gemello multiplo qui sotto. */
+  const scritta = await notificaUtente(prisma, push, {
     userId: input.clientId,
     type: TIPO_AVVISO_GIORNO_RISCRITTO,
     title,
     body,
     payload: { kind: KIND_GIORNO_RISCRITTO, giorno: input.dataISO },
   });
-  return 'avvisata';
+  return scritta ? 'avvisata' : 'non_partito';
 }
 
 /**
@@ -137,6 +149,16 @@ export function codaPerChiHaSalvato(esito: Esito | null, nonSappiamo: boolean): 
   if (esito === 'gia_detto') {
     return 'La cliente quel giorno lo aveva già aperto. Un avviso le era appena arrivato e non l\'ha '
       + 'ancora letto, quindi non gliene abbiamo mandato un altro.';
+  }
+  /**
+   * ⛔ **L'AVVISO NON È PARTITO, e allora si chiede di farlo a voce** — 9/9, con `notificaUtente` che
+   * ha imparato a dire se la riga è stata scritta. Prima questo caso non esisteva: cadeva nel `null`
+   * finale, cioè **silenzio**, su una cliente che quel giorno l'aveva aperto davvero. È il caso in
+   * cui la strada umana è l'unica rimasta, ed è quello in cui non si diceva niente.
+   */
+  if (esito === 'non_partito') {
+    return 'La cliente quel giorno lo aveva già aperto e l\'avviso NON le è partito: scrivile tu, '
+      + 'se può aver già fatto la spesa.';
   }
   /** ⚠️ Riscritto un giorno passato: non le si dice niente perché non c'è più niente da fare. */
   if (esito === 'passato') {
@@ -210,7 +232,8 @@ export function testoGiorniRiscritti(dalGiornoISO: string, quanti: number, oggiI
   return {
     title: `Il tuo menu è cambiato da ${quando} in poi`,
     body:
-      `Sono state riviste ${quanti} giornate che avevi già aperto. `
+      /** ⚠️ E qui come nel singolare: niente «che avevi già aperto». Vedi `testoGiornoRiscritto`. */
+      `Sono state riviste ${quanti} giornate. `
       + 'Se avevi già fatto la spesa, ricontrolla la lista: qualche ingrediente può essere diverso.',
   };
 }
@@ -218,9 +241,17 @@ export function testoGiorniRiscritti(dalGiornoISO: string, quanti: number, oggiI
 /**
  * Avvisa la cliente che PIÙ giornate sono state riscritte in un colpo solo.
  *
- * ⚠️ **Si avvisa solo per i giorni che aveva davvero aperto**, come per il singolo: chi riceve
- * giornate nuove che non aveva mai visto non ha niente da ricontrollare. E come per il singolo, non
- * lancia mai: il lavoro vero è il menu.
+ * ⚠️ **Chi avvisare lo decide il chiamante, e i chiamanti non fanno tutti lo stesso** — la
+ * differenza è reale e non è una svista:
+ *  · le porte di **Vera** riscrivono anche le giornate di cui **non sappiamo** se le ha aperte, e le
+ *    avvisano (`vera-chat.service.ts`, `applica-proposta.ts`);
+ *  · **`MenuService`** quelle giornate non le tocca affatto — per lui restano intoccabili — quindi
+ *    non ha niente da avvisare, e passa solo quelle aperte davvero.
+ * In tutti e due i casi la regola è la stessa: *si avvisa per quello che le si è cambiato sotto*.
+ *
+ * ⚠️ Nessuno passa le giornate che **sappiamo** non aperte: quelle non le aveva in mano, e un
+ * campanello che suona sempre si smette di guardare. E come per il singolo, non lancia mai: il
+ * lavoro vero è il menu.
  */
 export async function avvisaGiorniRiscritti(
   prisma: PrismaService,
@@ -240,16 +271,36 @@ export async function avvisaGiorniRiscritti(
   /**
    * ⚠️ **Il dedup guarda il primo giorno**, che è quello che l'avviso nomina: se glielo abbiamo già
    * detto e non l'ha ancora letto, un secondo avviso identico non aggiunge niente.
+   *
+   * ⛔ **E guarda anche QUANTE giornate copriva** — 9/9, trovato da una revisione avversariale.
+   * `avvisaGiornoRiscritto` scrive lo stesso `type` e la stessa chiave `giorno`, con `quanti`
+   * assente: un avviso per **una** giornata non letta faceva quindi saltare l'avviso per **sette**
+   * che partiva dieci minuti dopo. Scenario vero: Lucia riscrive domani a mano dalla scheda, poi
+   * detta «niente pesce» — la cliente legge «Il menu di domani è cambiato» e non sa niente degli
+   * altri sei giorni, con la spesa della settimana già fatta. Un avviso più piccolo non copre uno
+   * più grande.
    */
-  if (daLeggere.some((r) => (r.payload as { giorno?: unknown } | null)?.giorno === futuri[0])) return 'gia_detto';
+  const giaDetto = daLeggere.some((r) => {
+    const p = (r.payload ?? {}) as { giorno?: unknown; quanti?: unknown };
+    if (p.giorno !== futuri[0]) return false;
+    /** ⚠️ `quanti` assente = l'avviso singolo, cioè una giornata sola. */
+    return (typeof p.quanti === 'number' ? p.quanti : 1) >= futuri.length;
+  });
+  if (giaDetto) return 'gia_detto';
 
   const { title, body } = testoGiorniRiscritti(futuri[0], futuri.length, oggiISO);
-  await notificaUtente(prisma, push, {
+  /**
+   * ⛔ **«Avvisata» solo se la riga è stata scritta davvero** — 9/9. `notificaUtente` si mangia ogni
+   * errore per non far fallire il lavoro vero (giusto), quindi rendere `'avvisata'` a prescindere
+   * voleva dire affermare l'avviso senza averlo — e la nutrizionista legge quella parola per decidere
+   * se telefonare a una cliente che ha già fatto la spesa.
+   */
+  const scritta = await notificaUtente(prisma, push, {
     userId: input.clientId,
     type: TIPO_AVVISO_GIORNO_RISCRITTO,
     title,
     body,
     payload: { kind: KIND_GIORNO_RISCRITTO, giorno: futuri[0], quanti: futuri.length },
   });
-  return 'avvisata';
+  return scritta ? 'avvisata' : 'non_partito';
 }
