@@ -102,6 +102,14 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
         findMany: jest.fn().mockImplementation(async (arg: any) => {
           // ⚠️ Solo la domanda «quali date ci sono»: l'altra (le giornate recenti, per la penalità)
           // vuole i pasti, e mescolarle è il modo di far esplodere l'una o mentire all'altra.
+          /**
+           * ⛔ **E dall'8/9 c'è una TERZA domanda** — le rigenerazioni chiedono `CAMPI_DEL_GIORNO`,
+           * che contiene sia `date` sia `meals`. Cadeva nel primo ramo e riceveva righe **senza
+           * `id` né `meals`**: una trappola armata, innocua solo finché nessuna prova di questo file
+           * arriva davvero alla cancellazione. Adesso quel caso si riconosce e risponde vuoto, che
+           * è la verità: qui non si prova la rigenerazione (c'è `rigenera-non-cancella-a-mano`).
+           */
+          if (arg?.select?.date && arg?.select?.meals) return [];
           if (!arg?.select?.date) return [];
           const ultimo = await prisma.menuDay.findFirst();
           return ultimo?.date ? [{ date: ultimo.date }] : [];

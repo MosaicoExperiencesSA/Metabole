@@ -1,0 +1,84 @@
+Rigenera menu non tocca il giorno che la cliente ha gia aperto, e adesso lei viene avvisata
+
+LA DECISIONE (Simone, 8/9)
+«Rigenera menu deve rifare solo quelli futuri», precisata poi in «oggi si rifa
+se non l'ha aperto».
+
+DOV'ERA
+`regenerateFromToday` cancellava DA OGGI INCLUSO, sempre — il commento del
+metodo lo diceva a lettere chiare. Il menu che la cliente sta guardando in quel
+momento, quello per cui ha fatto la spesa e di cui magari ha gia cucinato la
+colazione, le cambiava sotto mentre lo aveva davanti.
+
+⛔ LA PRIMA STESURA AVEVA SCRITTO «MAI OGGI», E ERA SBAGLIATA
+La revisione avversariale l'ha smontata: questo pulsante esiste per RIPARARE
+una giornata sbagliata — un giorno con la sola colazione, un piatto col glutine
+a una celiaca — e il caso piu urgente e proprio oggi. Con un divieto secco, a
+chi non aveva ancora aperto niente il difetto restava nel piatto. Adesso oggi si
+salta SOLO se lei l'ha aperto davvero; il dubbio (`apertureTracciate: false`)
+non basta a toglierlo, perche chi preme il pulsante ha letto una conferma.
+⚠️ E non e un `gt` nel `where`: il giorno si toglie DOPO, guardando chi l'ha
+aperto. Sono due cose diverse.
+
+E LA CLIENTE VIENE AVVISATA
+Le tre rigenerazioni del motore — «Rigenera menu», la rierogazione e la
+ripartenza dal piano — non riscrivono un giorno, li riscrivono tutti quelli
+futuri, e la rierogazione parte DA SOLA a ogni cambio di kcal, di dieta, a una
+pesata corretta o alla data d'inizio spostata. Adesso, se fra i giorni cancellati
+ce n'era almeno uno che lei aveva gia aperto, le arriva UN avviso solo: «Il tuo
+menu e cambiato da giovedi 10 in poi». Stesse parole e stesso tipo dell'avviso
+della giornata riscritta a mano: dedup, icona e rotta del tocco sono scritti una
+volta sola.
+
+I QUATTRO PUNTI DELLA REVISIONE AVVERSARIALE
+· ⛔ CANCELLARE NON E RISCRIVERE, ed era il difetto peggiore. Si sposta la data
+  d'inizio al 20: si cancella tutto, l'erogazione non rimette niente (la finestra
+  e ancora chiusa) e la cliente resta col calendario VUOTO per dieci giorni.
+  L'avviso le diceva «ricontrolla la lista della spesa» per giornate che non
+  esistono piu, mentre nella stessa schermata l'operatore leggeva «Nessun giorno
+  rigenerato»: due messaggi opposti sullo stesso gesto, e quello falso andava a
+  lei — che questo avviso non lo puo spegnere. ⚠️ E la prova nuova ci si era
+  seduta sopra: il finto non erogava mai, quindi la suite PRETENDEVA che l'avviso
+  partisse proprio nel caso in cui la cliente restava senza niente.
+· ⛔ TRE FRASI DI VERA SONO DIVENTATE FALSE. Dicevano «per rifarle c'e "Rigenera
+  menu", che pero rifa anche il giorno che ha gia aperto»: da adesso quel giorno
+  lo salta anche lui. Riscritte, e la via d'uscita vera e «Scrivi il menu a mano»,
+  che su un giorno aperto passa con una conferma. Anche la prova che teneva ferma
+  la frase vecchia.
+· ⛔ LA SEGNALAZIONE DEL GLUTINE conta le giornate DA OGGI e dice «rigenerale»:
+  se la cliente ha aperto il menu di oggi, quel giorno resta col glutine e la
+  segnalazione risulta chiusa perche il pulsante e stato premuto. E l'unico posto
+  dove questa regola ha una conseguenza clinica: adesso la frase lo dice.
+· ⛔ LA `select` COPIATA A MANO. Le due colonne delle aperture erano riscritte a
+  mano in due punti nuovi: quella lista esiste gia una volta sola
+  (`CAMPI_DEL_GIORNO`) con un cappello che spiega perche non va copiata —
+  bastava dimenticarne una perche un giorno diventasse «non lo so» per sempre,
+  senza un errore. Adesso si usa quella, e il tipo locale e sparito.
+⚠️ Altri due: la frase dell'avviso multiplo con UN giorno solo era una copia
+identica di quella singola (adesso la chiama), e l'esito dell'avviso veniva
+buttato via con un `catch` muto (adesso si rende e i guai si scrivono nel log).
+
+MISURATO
+- Backend 480 suite / 8279 prove verdi, anche con `npm run test:notte`.
+- Nove mutazioni provate e tutte uccise: oggi saltato sempre · via l'avviso ·
+  avvisa anche i mai aperti · avvisa nel ramo del ripristino · via il dedup ·
+  non scarta i giorni passati · titolo generico · via l'avviso dalla ripartenza
+  dal piano · `payload.quanti` sempre 1.
+- ⚠️ Una prova scritta con la mezzanotte UTC era verde di giorno e ROSSA sotto
+  `test:notte`: rifatta con `toDateOnly`, la stessa funzione del codice. E la
+  terza volta in due giorni che succede.
+
+⚠️ COSA RESTA APERTO
+1. Sei messaggi promettono ancora «da OGGI in poi» (la finestra di conferma del
+   backoffice, due descrizioni di endpoint, uno script). Adesso sono veri
+   TRANNE quando lei ha aperto il menu di oggi: la risposta porta `oggiRestaSuo`,
+   e va mostrato in schermata. Non l'ho fatto: e backoffice, e volevo che
+   decidessi tu la frase.
+2. `restartFromPlanStart` cancella anche lo storico e lo rieroga: la cliente
+   perde i giorni passati. E pre-esistente e non l'ho toccato, ma va guardato.
+3. Chi ha l'app vecchia non ci manda le aperture, quindi il giorno di oggi gli
+   viene rifatto anche se ce l'aveva in mano. Si chiude da solo con gli
+   aggiornamenti.
+
+MIGRAZIONE
+Nessuna.

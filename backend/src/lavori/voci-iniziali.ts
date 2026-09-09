@@ -83,6 +83,37 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'rigenera-menu-non-tocca-oggi-aperto',
+    categoria: CODICE,
+    ordine: 0,
+    fatta: true,
+    nata: '2026-09-09T08:00',
+    priorita: 'alta',
+    titolo: '✅ «Rigenera menu» non tocca il giorno che la cliente ha gia aperto, e adesso lei viene avvisata',
+    dettaglio:
+      'Decisione di Simone: «rigenera menu deve rifare solo quelli futuri», precisata in «oggi si rifa '
+      + 'se non l\'ha aperto».\n\n'
+      + '⛔ `regenerateFromToday` cancellava DA OGGI INCLUSO, sempre: il menu che lei sta guardando in '
+      + 'quel momento, quello per cui ha fatto la spesa, le cambiava sotto mentre lo aveva davanti.\n\n'
+      + '⛔ **La prima stesura aveva scritto «mai oggi», ed era sbagliata**: questo pulsante esiste per '
+      + 'RIPARARE una giornata sbagliata, e il caso piu urgente e proprio oggi. Adesso oggi si salta '
+      + 'SOLO se lei l\'ha aperto davvero; il dubbio non basta.\n\n'
+      + '✅ E la cliente viene avvisata anche da qui: le tre rigenerazioni riscrivono TUTTI i giorni '
+      + 'futuri, e la rierogazione parte DA SOLA (kcal, dieta, pesata, data d\'inizio). Un avviso '
+      + 'solo, con le stesse parole della giornata riscritta a mano.\n\n'
+      + '⛔ Dalla revisione avversariale: CANCELLARE NON E RISCRIVERE (spostando la data d\'inizio la '
+      + 'cliente resta col calendario vuoto e l\'avviso le diceva di ricontrollare una spesa che non '
+      + 'serve piu — e la prova nuova ci si era seduta sopra) · TRE FRASI DI VERA sono diventate '
+      + 'false · LA SEGNALAZIONE DEL GLUTINE e l\'unico posto con una conseguenza clinica · la '
+      + '`select` era copiata a mano invece di `CAMPI_DEL_GIORNO`.\n\n'
+      + '⚠️ RESTA APERTO: sei messaggi promettono ancora «da OGGI in poi» (la finestra di conferma del '
+      + 'backoffice fra questi) — la risposta porta `oggiRestaSuo` e va mostrato in schermata, ma la '
+      + 'frase la decide Simone · `restartFromPlanStart` cancella anche lo storico · chi ha l\'app '
+      + 'vecchia non ci manda le aperture.\n\n'
+      + '⚠️ Misurato: backend 480 suite / 8279 prove (verdi anche con test:notte), nove mutazioni '
+      + 'uccise. Nessuna migrazione.',
+  },
+  {
     chiave: 'indice-nome-ricette',
     categoria: CODICE,
     ordine: 0,

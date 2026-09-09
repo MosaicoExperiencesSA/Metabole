@@ -309,7 +309,8 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
     ? ` ⚠️ ${bloccate.length} ${bloccate.length === 1 ? 'cliente ha già aperto in app' : 'clienti hanno già aperto in app'} ` +
       `un menu più avanti: per ${bloccate.length === 1 ? 'lei' : 'loro'} i giorni già preparati li ho lasciati ` +
       'come sono (rifarli lascerebbe un buco che non si richiude). Si rifanno con «Rigenera menu» dalla scheda, ' +
-      'che però rifà anche il giorno che ha già aperto.'
+      'che però il giorno già aperto lo salta anche lui: quello si riscrive dalla scheda, con '
+      + '«Scrivi il menu a mano».'
     : '';
 
   /**

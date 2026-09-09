@@ -497,7 +497,15 @@ describe('⛔ la regola di dieta cancella una CODA, per ogni cliente', () => {
      */
     expect(esito.riepilogo).toContain('ha già aperto in app');
     // ⚠️ E il rimedio si dice per quello che fa: «Rigenera menu» cancella anche il giorno ricevuto.
-    expect(esito.riepilogo).toContain('rifà anche il giorno che ha già aperto');
+    /**
+     * ⛔ **La frase è cambiata l'8/9, e la prova con lei.** Diceva «Rigenera menu … che però rifà
+     * anche il giorno che ha già aperto»: da quando quel pulsante il giorno aperto lo **salta**,
+     * quella riga mandava la nutrizionista a premere un pulsante che non fa più quello che le si
+     * stava promettendo. La via d'uscita vera adesso è «Scrivi il menu a mano», che su un giorno
+     * aperto passa con una conferma.
+     */
+    expect(esito.riepilogo).toContain('Scrivi il menu a mano');
+    expect(esito.riepilogo).not.toContain('rifà anche il giorno che ha già aperto');
     // ⚠️ E la regola vale lo stesso: il divieto sui menu NUOVI è il motivo per cui esiste.
     expect(prisma.productRule.create).toHaveBeenCalled();
   });

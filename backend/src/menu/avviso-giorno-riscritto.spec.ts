@@ -11,6 +11,8 @@ import {
   codaPerChiHaSalvato,
   laGiornataECambiata,
   testoGiornoRiscritto,
+  testoGiorniRiscritti,
+  avvisaGiorniRiscritti,
   TIPO_AVVISO_GIORNO_RISCRITTO,
   KIND_GIORNO_RISCRITTO,
 } from './avviso-giorno-riscritto';
@@ -199,5 +201,91 @@ describe('quando la giornata non è cambiata davvero', () => {
   it('⚠️ da niente a qualcosa è un cambiamento', () => {
     expect(laGiornataECambiata(undefined, g)).toBe(true);
     expect(laGiornataECambiata(null, g)).toBe(true);
+  });
+});
+
+/**
+ * ⛔ **QUANDO I GIORNI SONO PIÙ D'UNO** — «Rigenera menu» e la rierogazione non riscrivono un
+ * giorno, li riscrivono tutti quelli futuri.
+ *
+ * ⚠️ Queste prove sono nate da una revisione avversariale l'8/9: la prima stesura di quelle funzioni
+ * **non aveva nessuna prova diretta**, mentre il fratello singolo ne aveva ventitré. Tre mutazioni
+ * sopravvivevano — via il dedup, non scartare i giorni passati, e il titolo ridotto a «Qualcosa è
+ * cambiato» — cioè tutto il testo che la cliente legge era scoperto.
+ */
+describe('l\'avviso quando i giorni riscritti sono più d\'uno', () => {
+  it('⛔ dice DA QUANDO e QUANTE, non «qualcosa è cambiato»', () => {
+    const { title, body } = testoGiorniRiscritti('2026-09-12', 3, '2026-09-09');
+    expect(title).toBe('Il tuo menu è cambiato da sabato 12 settembre in poi');
+    expect(body).toContain('3 giornate che avevi già aperto');
+    expect(body).toContain('ricontrolla la lista');
+  });
+
+  /**
+   * ⛔ **Con un giorno solo CHIAMA l'altra funzione**, non riscrive la stessa frase: erano due copie
+   * identiche, e il giorno che si ritocca il singolare la porta multipla avrebbe continuato a dire
+   * la frase vecchia senza dirlo a nessuno.
+   */
+  it('⛔ con un giorno solo è esattamente la frase del singolo', () => {
+    expect(testoGiorniRiscritti('2026-09-10', 1, '2026-09-09'))
+      .toEqual(testoGiornoRiscritto('2026-09-10', '2026-09-09'));
+  });
+
+  const finto = () => {
+    const create = jest.fn().mockResolvedValue({});
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ id: 'c1', prefs: null }) },
+      notification: { create, findMany: jest.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
+    const push = { sendToUser: jest.fn().mockResolvedValue(undefined) };
+    return { prisma, push, create };
+  };
+  const ADESSO = new Date('2026-09-09T10:00:00.000Z');
+
+  /** ⛔ Si nomina il PRIMO giorno, non quello che capita per primo nell'elenco. */
+  it('⛔ nomina il primo giorno, comunque arrivino', async () => {
+    const { prisma, push, create } = finto();
+    await avvisaGiorniRiscritti(prisma, push, {
+      clientId: 'c1', giorniISO: ['2026-09-14', '2026-09-11', '2026-09-12'], adesso: ADESSO,
+    });
+    expect(create.mock.calls[0][0].data.payload.giorno).toBe('2026-09-11');
+    expect(create.mock.calls[0][0].data.payload.quanti).toBe(3);
+  });
+
+  /**
+   * ⛔ **I giorni già passati si scartano.** «Ripartenza dal piano» cancella anche lo storico: dirle
+   * di ricontrollare la spesa per un pranzo di due settimane fa è un allarme senza niente da fare.
+   */
+  it('⛔ i giorni passati non entrano nel conto, e da soli non fanno partire niente', async () => {
+    const { prisma, push, create } = finto();
+    await avvisaGiorniRiscritti(prisma, push, {
+      clientId: 'c1', giorniISO: ['2026-09-01', '2026-09-11'], adesso: ADESSO,
+    });
+    expect(create.mock.calls[0][0].data.payload.quanti).toBe(1);
+
+    const b = finto();
+    expect(await avvisaGiorniRiscritti(b.prisma, b.push, {
+      clientId: 'c1', giorniISO: ['2026-09-01', '2026-09-02'], adesso: ADESSO,
+    })).toBe('passato');
+    expect(b.create).not.toHaveBeenCalled();
+  });
+
+  /** ⛔ E un avviso per quello stesso primo giorno, non ancora letto, ne blocca un secondo. */
+  it('⛔ non si suona due volte finché non l\'ha letta', async () => {
+    const { prisma, push, create } = finto();
+    (prisma as unknown as { notification: { findMany: jest.Mock } }).notification.findMany
+      .mockResolvedValue([{ payload: { giorno: '2026-09-11' } }]);
+    expect(await avvisaGiorniRiscritti(prisma, push, {
+      clientId: 'c1', giorniISO: ['2026-09-11', '2026-09-12'], adesso: ADESSO,
+    })).toBe('gia_detto');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  /** ⚠️ Stesso tipo e stesso `kind` dell'avviso singolo: dedup, icona e rotta sono scritti una volta. */
+  it('⚠️ tipo e kind sono quelli dell\'avviso singolo', async () => {
+    const { prisma, push, create } = finto();
+    await avvisaGiorniRiscritti(prisma, push, { clientId: 'c1', giorniISO: ['2026-09-11'], adesso: ADESSO });
+    expect(create.mock.calls[0][0].data.type).toBe(TIPO_AVVISO_GIORNO_RISCRITTO);
+    expect(create.mock.calls[0][0].data.payload.kind).toBe(KIND_GIORNO_RISCRITTO);
   });
 });

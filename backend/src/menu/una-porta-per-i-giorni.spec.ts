@@ -33,7 +33,9 @@ import { join } from 'node:path';
 const PERMESSI = new Map<string, string>([
   [
     'src/menu/menu.service.ts',
-    // `redeliverFutureDays` (> oggi), `regenerateFromToday` (>= oggi), `restartFromPlanStart`
+    // ⚠️ Dall'8/9 `regenerateFromToday` è `> oggi` come le altre, non più `>= oggi`: il menu del
+    // giorno che la cliente sta guardando resta suo (decisione di Simone).
+    // `redeliverFutureDays` (> oggi), `regenerateFromToday` (> oggi), `restartFromPlanStart`
     // (tutto): tre `where` per DATA, nessun filtro sul contenuto e nessuno su `viewedAt`. Dopo
     // ognuna, l'ultimo giorno rimasto è per forza precedente a quello che si vuole ricomporre.
     'le tre rigenerazioni intere sono code per costruzione (cancellano per data); ⛔ `togliUnGiornoDiMenu` NO — e non lascia un buco per un motivo diverso: i giorni dopo SCALANO DI UNO, quindi in mezzo non resta niente di scoperto e quello che si libera è l ULTIMA data, dove `deliverIfEligible` sa comporre',

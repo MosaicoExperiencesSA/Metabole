@@ -125,7 +125,19 @@ export function motivoSegnalazioneMenuDaRifare(nome: string | null, giorniFuturi
     `${nome ?? 'Una cliente'} ha dichiarato il glutine e il piano è passato a «${DIETA_SENZA_GLUTINE}». ` +
     `Ha ${giorniFuturi} giornate già erogate da oggi in avanti, costruite sulla dieta precedente: ` +
     'vanno rigenerate dalla scheda cliente («Rigenera menu»), altrimenti nei prossimi giorni ' +
-    'continuerebbe a vedere piatti con glutine.'
+    'continuerebbe a vedere piatti con glutine. ' +
+    /**
+     * ⛔ **IL GIORNO DI OGGI PUÒ RESTARE INDIETRO, E QUI NON È UN DETTAGLIO** — 8/9, da una
+     * revisione avversariale.
+     *
+     * Dall'8/9 «Rigenera menu» salta il giorno di oggi quando la cliente l'ha già aperto (decisione
+     * di Simone). Questo conto invece parte **da oggi**: chi legge preme il pulsante, vede
+     * «rigenerati N−1 giorni» e considera chiusa la segnalazione — mentre il piatto col glutine di
+     * **oggi** è ancora nel piatto di una celiaca. È l'unico posto in cui quella regola ha una
+     * conseguenza clinica, e per questo la frase lo dice invece di lasciarlo dedurre.
+     */
+    '⚠️ Se ha già aperto il menu di oggi, quel giorno «Rigenera menu» non lo tocca: va riscritto ' +
+    'a mano dalla scheda («Scrivi il menu a mano»).'
   );
 }
 

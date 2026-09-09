@@ -1866,7 +1866,8 @@ export class VeraChatService {
       return (
         `⚠️ Le giornate già preparate ${fatto ? 'non le ho toccate' : 'NON le rifaccio'}: il menu ` +
         `del ${giornoItaliano(coda.apertoIl)} l'ha già aperto in app e quello resta suo. Per rifarle c'è ` +
-        '«Rigenera menu» dalla sua scheda, che però rifà anche il giorno che ha già aperto.'
+        '«Rigenera menu» dalla sua scheda — che però il giorno già aperto lo salta anche lui: quello si '
+        + 'riscrive dalla scheda, con «Scrivi il menu a mano».'
       );
     }
     /**
@@ -4029,7 +4030,8 @@ export class VeraChatService {
         return (
           ` ⚠️ Nei giorni già preparati c’è, ma non li ho toccati: il menu del ${giornoItaliano(coda.apertoIl)} ` +
           'l\'ha già aperto in app e quello resta suo. Per rifarli c\'è «Rigenera menu» dalla sua scheda, ' +
-          'che però rifà anche il giorno che ha già aperto.'
+          'che però il giorno già aperto lo salta anche lui: quello si riscrive dalla scheda, con '
+          + '«Scrivi il menu a mano».'
         );
       }
       /** ⚠️ Il terzo esito: c'è, e non so se l'ha aperto. Si dice così — non «non ce n'era». */

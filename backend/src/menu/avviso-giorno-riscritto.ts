@@ -180,3 +180,76 @@ export function laGiornataECambiata(prima: unknown, dopo: unknown): boolean {
   };
   return chiave(prima) !== chiave(dopo);
 }
+
+/**
+ * ⛔ **QUANDO I GIORNI RISCRITTI SONO PIÙ D'UNO** — 8/9, seconda metà della stessa decisione.
+ *
+ * «Rigenera menu» e la rierogazione automatica non toccano **un** giorno: cancellano e rifanno
+ * **tutti quelli futuri**, e partono da sole a ogni cambio di kcal, di dieta, di pesata o di data
+ * d'inizio. La conseguenza per la cliente è la stessa di una giornata riscritta a mano — solo
+ * moltiplicata per sette — e fino a oggi non gliela diceva nessuno.
+ *
+ * ⚠️ **Un avviso solo, non uno per giorno.** Sette notifiche in fila per un gesto solo sono un
+ * campanello che si smette di guardare, ed è il contrario di quello che questo avviso serve a fare.
+ * Si nomina **il primo** giorno cambiato — «da giovedì 10 in poi» — perché è quello da cui la spesa
+ * non vale più.
+ *
+ * ⚠️ **Stesso tipo e stesso `kind` dell'avviso singolo**, di proposito: il dedup, l'icona nella
+ * campanella e la rotta del tocco sono già scritti una volta sola, e una seconda regola qui sarebbe
+ * la seconda regola che un giorno dice il contrario della prima.
+ */
+export function testoGiorniRiscritti(dalGiornoISO: string, quanti: number, oggiISO: string): { title: string; body: string } {
+  /**
+   * ⛔ **Con un giorno solo si CHIAMA l'altra, non si riscrive la stessa frase** — trovato da una
+   * revisione avversariale l'8/9: le due funzioni producevano la stessa identica stringa scritta
+   * due volte, e il giorno che si ritocca il singolare la porta multipla avrebbe continuato a dire
+   * la frase vecchia senza dirlo a nessuno.
+   */
+  if (quanti <= 1) return testoGiornoRiscritto(dalGiornoISO, oggiISO);
+  const quando = etichettaGiorno(dalGiornoISO, oggiISO);
+  return {
+    title: `Il tuo menu è cambiato da ${quando} in poi`,
+    body:
+      `Sono state riviste ${quanti} giornate che avevi già aperto. `
+      + 'Se avevi già fatto la spesa, ricontrolla la lista: qualche ingrediente può essere diverso.',
+  };
+}
+
+/**
+ * Avvisa la cliente che PIÙ giornate sono state riscritte in un colpo solo.
+ *
+ * ⚠️ **Si avvisa solo per i giorni che aveva davvero aperto**, come per il singolo: chi riceve
+ * giornate nuove che non aveva mai visto non ha niente da ricontrollare. E come per il singolo, non
+ * lancia mai: il lavoro vero è il menu.
+ */
+export async function avvisaGiorniRiscritti(
+  prisma: PrismaService,
+  push: PushMinimo,
+  input: { clientId: string; giorniISO: string[]; adesso?: Date },
+): Promise<Esito> {
+  const oggiISO = giornoLocale(input.adesso ?? new Date());
+  /** ⚠️ Solo i giorni che non sono già passati, e in ordine: il primo è quello che si nomina. */
+  const futuri = [...new Set(input.giorniISO)].filter((g) => distanzaGiorni(g, oggiISO) >= 0).sort();
+  if (!futuri.length) return 'passato';
+
+  const daLeggere = (await prisma.notification.findMany({
+    where: { userId: input.clientId, type: TIPO_AVVISO_GIORNO_RISCRITTO, readAt: null, archivedAt: null },
+    select: { payload: true },
+    take: 20,
+  }).catch(() => [])) as { payload?: unknown }[];
+  /**
+   * ⚠️ **Il dedup guarda il primo giorno**, che è quello che l'avviso nomina: se glielo abbiamo già
+   * detto e non l'ha ancora letto, un secondo avviso identico non aggiunge niente.
+   */
+  if (daLeggere.some((r) => (r.payload as { giorno?: unknown } | null)?.giorno === futuri[0])) return 'gia_detto';
+
+  const { title, body } = testoGiorniRiscritti(futuri[0], futuri.length, oggiISO);
+  await notificaUtente(prisma, push, {
+    userId: input.clientId,
+    type: TIPO_AVVISO_GIORNO_RISCRITTO,
+    title,
+    body,
+    payload: { kind: KIND_GIORNO_RISCRITTO, giorno: futuri[0], quanti: futuri.length },
+  });
+  return 'avvisata';
+}

@@ -18,6 +18,34 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-09
+
+- `[Sviluppo]` ⛔ **«Rigenera menu» non tocca il giorno che la cliente ha gia aperto** — decisione di
+  Simone: *«rigenera menu deve rifare solo quelli futuri»*, precisata in *«oggi si rifa se non l'ha
+  aperto»*. `regenerateFromToday` cancellava **da oggi incluso, sempre**: il menu che lei sta
+  guardando in quel momento — quello per cui ha fatto la spesa — le cambiava sotto mentre lo aveva
+  davanti.
+  ⛔ **La prima stesura aveva scritto «mai oggi», e la revisione avversariale l'ha smontata**: questo
+  pulsante esiste per **riparare** una giornata sbagliata (un giorno con la sola colazione, un piatto
+  col glutine a una celiaca) e il caso piu urgente e proprio oggi. Adesso oggi si salta **solo se lei
+  l'ha aperto davvero**; il dubbio non basta, perche chi preme ha letto una conferma. ⚠️ E non e un
+  `gt` nel `where`: il giorno si toglie **dopo**.
+  ▶️ **E la cliente viene avvisata** anche da qui: le tre rigenerazioni del motore riscrivono **tutti**
+  i giorni futuri e la rierogazione parte **da sola** (kcal, dieta, pesata, data d'inizio). Un avviso
+  solo, con le stesse parole della giornata riscritta a mano.
+  ⛔ **Quattro cose dalla revisione avversariale.** (a) **Cancellare non e riscrivere**, ed era il
+  peggiore: spostando la data d'inizio si cancella tutto, l'erogazione non rimette niente e la
+  cliente resta col calendario **vuoto** — l'avviso le diceva «ricontrolla la spesa» per giornate che
+  non esistono piu, e **la prova nuova ci si era seduta sopra**. (b) **Tre frasi di Vera sono
+  diventate false** («Rigenera menu, che pero rifa anche il giorno che ha gia aperto»): riscritte, e
+  la via d'uscita vera e «Scrivi il menu a mano». (c) **La segnalazione del glutine** conta da oggi e
+  dice «rigenerale»: e l'unico posto con una conseguenza **clinica**, e adesso la frase lo dice.
+  (d) La `select` era **copiata a mano** invece di `CAMPI_DEL_GIORNO`.
+  ⚠️ Misurato: backend **480 suite / 8279 prove** (verdi anche con `test:notte`), **nove mutazioni
+  uccise**. ⚠️ E una prova scritta con la mezzanotte UTC era verde di giorno e **rossa di notte**: e
+  la terza volta in due giorni. **Nessuna migrazione.** Dettaglio in
+  `progetto/COMMIT_parte_rigenera_solo_futuri.txt`.
+
 ## 2026-09-08
 
 - `[Sviluppo]` ⛔ **Due indici sul nome delle ricette** — decisione di Simone dopo la consegna della

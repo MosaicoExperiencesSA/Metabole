@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
-import { ricetteDelGiorno, senzaQuelleAMano } from '../vera/menu-da-rifare';
+import { CAMPI_DEL_GIORNO, type GiornoDaValutare, laClienteLHaAperto, ricetteDelGiorno, senzaQuelleAMano } from '../vera/menu-da-rifare';
+import { avvisaGiorniRiscritti, type Esito } from './avviso-giorno-riscritto';
 import { slotDaCuiPescare } from '../common/slot-pasto';
 import { poolDalPassato, type GiornataDelPassato } from '../catalog/pool-dal-passato';
 import { GIORNI_DELLA_FINESTRA, carneRestante } from './carne-quante-volte';
@@ -3723,6 +3724,56 @@ export class MenuService {
     };
   }
 
+  /**
+   * ⛔ **E LA CLIENTE VIENE AVVISATA ANCHE QUI** — 8/9, la stessa decisione della giornata scritta a
+   * mano, portata dove il danno è più grande: queste porte non riscrivono **un** giorno, li
+   * riscrivono **tutti quelli futuri**. ⚠️ E una delle tre — la rierogazione — parte **da sola**, a
+   * ogni cambio di kcal, di tipo di dieta, a una pesata corretta o alla data d'inizio spostata:
+   * nessuno la preme, e nessuno si accorge che è successa.
+   *
+   * ⚠️ E siccome aprire la **lista della spesa** segna aperti tutti e sette i giorni consegnati,
+   * quasi sempre la persona colpita **ha già comprato**.
+   *
+   * ⚠️ **Un avviso solo per tutte le giornate**, non uno per giorno: la regola e le parole stanno in
+   * `avviso-giorno-riscritto.ts`, le stesse che legge chi riceve una giornata riscritta a mano.
+   * ⛔ E non ferma niente: `avvisaGiorniRiscritti` assorbe i propri errori, come ogni avviso di
+   * questo progetto. Un menu non rigenerato per una notifica che non parte sarebbe il rimedio
+   * peggiore del male.
+   */
+  private async avvisaSeAveviGiaQuestiGiorni(
+    clientId: string,
+    cancellati: GiornoDaValutare[],
+    /**
+     * ⛔ **QUANTI GIORNI SONO STATI DAVVERO RIMESSI** — trovato da una revisione avversariale l'8/9,
+     * ed era il difetto peggiore di questa consegna.
+     *
+     * Cancellare non e' riscrivere. Si sposta la data d'inizio piano al 20: si cancella tutto,
+     * `deliverIfEligible` non eroga niente (la finestra e' ancora chiusa) e la cliente resta col
+     * calendario **vuoto** per dieci giorni. L'avviso le diceva «ricontrolla la lista della spesa»
+     * per giornate che non esistono piu, e nella stessa schermata l'operatore leggeva «Nessun giorno
+     * rigenerato»: due messaggi opposti sullo stesso gesto, e quello falso andava a lei — che
+     * questo avviso **non lo puo' spegnere**.
+     */
+    quantiRimessi: number,
+  ): Promise<Esito | null> {
+    if (!quantiRimessi) return null;
+    const aperti = cancellati
+      .filter((g) => laClienteLHaAperto(g))
+      .map((g) => g.date.toISOString().slice(0, 10));
+    if (!aperti.length) return null;
+    /**
+     * ⚠️ **L'esito si rende e i guai si scrivono.** `avvisaGiorniRiscritti` non ha un `try` suo — a
+     * non lanciare e' `notificaUtente` dentro di lei — quindi un `catch` muto qui nasconderebbe un
+     * guasto vero. E l'esito serve a chi ha premuto il pulsante: vedi `regenerateMenu`.
+     */
+    try {
+      return await avvisaGiorniRiscritti(this.prisma, this.push, { clientId, giorniISO: aperti });
+    } catch (e) {
+      this.logger.warn(`Avviso «menu cambiato» non partito per ${clientId}: ${(e as Error).message}`);
+      return null;
+    }
+  }
+
   async redeliverFutureDays(clientId: string): Promise<{ removed: number; delivered: string[]; ripristinati: number }> {
     // Come `regenerateFromToday`: col piano fermo si cancellerebbe senza poter rierogare.
     if (await this.pianoFermato(clientId)) return { removed: 0, delivered: [], ripristinati: 0 };
@@ -3797,17 +3848,41 @@ export class MenuService {
      * rimedio peggiore del male.
      */
     await this.avvisaGiornateAManoFuoriRegime(clientId, aMano).catch(() => undefined);
+    /**
+     * ⚠️ **Solo qui, non nel ramo del ripristino**: se la rierogazione è andata a vuoto i giorni
+     * sono stati **rimessi com'erano**, quindi per la cliente non è cambiato niente e un avviso le
+     * direbbe una cosa falsa.
+     */
+    await this.avvisaSeAveviGiaQuestiGiorni(clientId, daRifare as GiornoDaValutare[], delivered.length);
     return { removed: del.count, delivered, ripristinati: 0 };
   }
 
   /**
-   * RIGENERA i menu da OGGI in poi (incluso oggi), senza toccare lo storico passato.
+   * RIGENERA i menu **da domani** in poi, senza toccare né lo storico né oggi.
    * Serve a correggere i menu GIÀ EROGATI ma sbagliati da una vecchia generazione
    * (es. un giorno con la sola colazione): li cancella e li rieroga con la logica
    * attuale (corretta). Rispetta gate misure/finestre come l'erogazione normale
    * (quindi può restituire 0 giorni se la cliente non è idonea: es. misure mancanti).
+   *
+   * ⛔ **IL GIORNO DI OGGI SI RIFÀ SOLO SE LEI NON L'HA APERTO** — decisione di Simone, 8/9:
+   * *«rigenera menu deve rifare solo quelli futuri»*, precisata poi in *«oggi si rifà se non l'ha
+   * aperto»*.
+   *
+   * Fino a oggi cancellava **da oggi incluso, sempre**: il menu che la cliente sta guardando in
+   * quel momento — quello per cui ha fatto la spesa e di cui magari ha già cucinato la colazione —
+   * le cambiava sotto mentre lo aveva davanti.
+   *
+   * ⚠️ **Ma «mai oggi» sarebbe stato peggio**, e la prima stesura l'aveva scritto così: questo
+   * pulsante esiste per riparare una giornata sbagliata — un giorno con la sola colazione, un
+   * piatto col glutine a una celiaca — e il caso più urgente è **proprio oggi**. Con un divieto
+   * secco, a chi non aveva ancora aperto niente il difetto restava nel piatto.
+   *
+   * ⚠️ **E si guarda solo l'apertura VERA**: `apertureTracciate: false` («non lo so») lascia
+   * rifare, come prima. Chi preme questo pulsante ha letto una conferma; il dubbio non gli toglie
+   * lo strumento — è la stessa differenza fra un gesto e un automatismo che vale in tutto il resto
+   * del progetto.
    */
-  async regenerateFromToday(clientId: string): Promise<{ removed: number; delivered: string[] }> {
+  async regenerateFromToday(clientId: string): Promise<{ removed: number; delivered: string[]; oggiRestaSuo?: boolean; avviso?: Esito | null }> {
     // Piano fermato dal nutrizionista: NON si cancella niente. `deliverIfEligible` non rieroga
     // finché il blocco è attivo, quindi una rigenerazione qui toglierebbe alla cliente i giorni
     // che il blocco le lascia di proposito — «i giorni già ricevuti, incluso oggi, restano suoi» —
@@ -3825,17 +3900,35 @@ export class MenuService {
      * ⚠️ E quante ne ha risparmiate **si dice**: una passata che salta tre giornate in silenzio è
      * indistinguibile da una che non ha trovato niente.
      */
+    /**
+     * ⚠️ **`gte`, e il giorno di oggi si toglie DOPO** — non con un `gt` nel `where`. Sono due cose
+     * diverse: `gt` toglierebbe oggi **sempre**, anche a chi non l'ha mai aperto, e con lui il
+     * mestiere per cui questo pulsante esiste.
+     * ⚠️ I campi si chiedono a `CAMPI_DEL_GIORNO`, che li scrive una volta sola: copiarli qui era
+     * il quarto punto in cui bastava dimenticarne uno perché un giorno diventasse «non lo so» per
+     * sempre, senza un errore.
+     */
     const futuri = (await this.prisma.menuDay.findMany({
       where: { clientId, date: { gte: today } },
-      select: { id: true, meals: true },
-    })) as { id: string; meals: unknown }[];
-    const { daRifare, aMano } = senzaQuelleAMano(futuri);
+      select: CAMPI_DEL_GIORNO,
+    })) as GiornoDaValutare[];
+    /**
+     * ⛔ **Oggi esce dall'elenco solo se lei l'ha aperto davvero.** Vedi il cappello del metodo: il
+     * dubbio (`apertureTracciate: false`) non basta a toglierlo.
+     */
+    const oggiSuo = futuri.filter((g) => g.date.getTime() === today.getTime() && laClienteLHaAperto(g));
+    if (oggiSuo.length) {
+      this.logger.log(`Rigenera menu per ${clientId}: il giorno di oggi lo ha già aperto, resta suo.`);
+    }
+    const daGuardare = futuri.filter((g) => !oggiSuo.includes(g));
+    const { daRifare, aMano } = senzaQuelleAMano(daGuardare);
     if (aMano.length) {
       this.logger.log(`Rigenera menu per ${clientId}: ${aMano.length} giornate scritte a mano tenute.`);
     }
     const del = await this.prisma.menuDay.deleteMany({ where: { id: { in: daRifare.map((d) => d.id) } } });
     const delivered = await this.deliverIfEligible(clientId);
-    return { removed: del.count, delivered };
+    const avviso = await this.avvisaSeAveviGiaQuestiGiorni(clientId, daRifare, delivered.length);
+    return { removed: del.count, delivered, oggiRestaSuo: oggiSuo.length > 0, avviso };
   }
 
   /**
@@ -4104,14 +4197,20 @@ export class MenuService {
      */
     const tutti = (await this.prisma.menuDay.findMany({
       where: { clientId },
-      select: { id: true, meals: true },
-    })) as { id: string; meals: unknown }[];
+      select: CAMPI_DEL_GIORNO,
+    })) as GiornoDaValutare[];
     const { daRifare, aMano } = senzaQuelleAMano(tutti);
     if (aMano.length) {
       this.logger.log(`Ripartenza dal piano per ${clientId}: ${aMano.length} giornate scritte a mano tenute.`);
     }
     const del = await this.prisma.menuDay.deleteMany({ where: { id: { in: daRifare.map((d) => d.id) } } });
     const delivered = await this.deliverIfEligible(clientId);
+    /**
+     * ⚠️ Qui si cancella **tutto**, passato compreso: l'avviso però nomina solo i giorni **futuri**
+     * che aveva aperto — su una giornata di due settimane fa non c'è niente da ricontrollare, e
+     * `avvisaGiorniRiscritti` scarta da sé quelle passate.
+     */
+    await this.avvisaSeAveviGiaQuestiGiorni(clientId, daRifare, delivered.length);
     return { removed: del.count, delivered };
   }
 
