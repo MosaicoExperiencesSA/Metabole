@@ -165,6 +165,8 @@ const META: Record<string, Meta> = {
   },
 
   marketing_require_consent: { label: 'Campagne solo con consenso esplicito', group: 'Marketing', kind: 'toggle', help: 'Se acceso, dalle campagne sono esclusi i lead che non hanno mai dato un consenso esplicito (chi ha detto NO è escluso sempre, in ogni caso). Va acceso PRIMA di lavorare lo storico importato.' },
+  winback_ricorrente_giorni: { label: 'Richiamo a chi non ha più un piano: ogni quanto', group: 'Marketing', kind: 'number', unit: 'giorni', help: 'Ogni quanti giorni riscrivere a una cliente il cui percorso a pagamento è finito. È l’unica cosa che le arriva ancora: promemoria, misure e avvisi alla coach si spengono con il piano. La coach riceve copia di ogni invio. L’innesco va acceso in Marketing → Automazione (nasce spento).' },
+  winback_ricorrente_max: { label: 'Richiamo a chi non ha più un piano: quante volte in tutto', group: 'Marketing', kind: 'number', unit: 'volte', help: 'Quanti richiami al massimo, poi si smette. Con 60 giorni e 6 volte si copre un anno. Zero spegne il richiamo.' },
 
   app_store_url: { label: 'Link App Store', group: 'App', kind: 'text', help: 'Usato dai pulsanti “Scarica” nelle email.' },
   play_store_url: { label: 'Link Google Play', group: 'App', kind: 'text', help: 'Usato dai pulsanti “Scarica” nelle email.' },

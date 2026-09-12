@@ -54,6 +54,22 @@ const menuDayFinto = (ultimo: { date: Date } | null) => ({
 const dayIso = (n: number) => giornoLocale(new Date(aGiorno(new Date()).getTime() + n * 86_400_000));
 const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 
+/**
+ * ⛔ **IL PIANO ALIMENTARE ATTIVO — la premessa di quasi tutti i casi di questo file.**
+ *
+ * Dal 12/9 `measurementGate` esce subito, con `level: 'none'`, per chi **non ha un piano**: senza
+ * un piano non si chiedono le misure e soprattutto non si blocca l'app (prima un'ex cliente ci
+ * trovava il muro «Contatta la tua coach», per una pesata che serviva a un menu che non sarebbe
+ * mai arrivato). `period` è dichiarato e **non** è `monitoring`: nel Monitoraggio il peso si
+ * chiede e basta, e quel ramo ha i suoi test più sotto.
+ */
+const PIANO_ALIMENTARE_ATTIVO = {
+  findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }),
+  findMany: jest.fn().mockResolvedValue([
+    { id: 'sub', status: 'active', startDate: null, endDate: null, plan: { period: '1m' } },
+  ]),
+};
+
 /** Ultima push inviata dal servizio costruito da `makeService`, per i test dello sblocco. */
 let pushInviate: { userId: string; title: string; body: string; data?: Record<string, string> }[] = [];
 
@@ -89,9 +105,12 @@ function makeService(prisma: unknown, parametri: Record<string, number> = {}) {
 describe('MenuService — gate misure', () => {
   it('nessun menu erogato → gate non richiesto', async () => {
     const prisma = {
-      // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
-      // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
-      subscription: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+      // ⛔ **QUI CI VUOLE UN PIANO VERO, e prima non c'era** (12/9). Queste righe dicevano
+      // «nessun abbonamento», usandolo come scorciatoia per «non è Monitoraggio»: da quando il
+      // gate esce con `level: 'none'` a chi non ha un piano, la scorciatoia rendeva la premessa
+      // di questi test **falsa**, e due si sono fatti rossi per la ragione giusta. Il piano
+      // alimentare attivo è quello che questi casi hanno sempre inteso avere.
+      subscription: PIANO_ALIMENTARE_ATTIVO,
       menuDay: menuDayFinto(null),
       clientProfile: { findUnique: jest.fn().mockResolvedValue(null) }, // nessun piano → nessun popup
     };
@@ -104,9 +123,12 @@ describe('MenuService — gate misure', () => {
 
   it('2° giorno del ciclo passato e nessuna misura → bloccante', async () => {
     const prisma = {
-      // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
-      // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
-      subscription: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+      // ⛔ **QUI CI VUOLE UN PIANO VERO, e prima non c'era** (12/9). Queste righe dicevano
+      // «nessun abbonamento», usandolo come scorciatoia per «non è Monitoraggio»: da quando il
+      // gate esce con `level: 'none'` a chi non ha un piano, la scorciatoia rendeva la premessa
+      // di questi test **falsa**, e due si sono fatti rossi per la ragione giusta. Il piano
+      // alimentare attivo è quello che questi casi hanno sempre inteso avere.
+      subscription: PIANO_ALIMENTARE_ATTIVO,
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-1)) }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -118,9 +140,12 @@ describe('MenuService — gate misure', () => {
 
   it('2° giorno del ciclo oggi e nessuna misura → bloccante', async () => {
     const prisma = {
-      // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
-      // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
-      subscription: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+      // ⛔ **QUI CI VUOLE UN PIANO VERO, e prima non c'era** (12/9). Queste righe dicevano
+      // «nessun abbonamento», usandolo come scorciatoia per «non è Monitoraggio»: da quando il
+      // gate esce con `level: 'none'` a chi non ha un piano, la scorciatoia rendeva la premessa
+      // di questi test **falsa**, e due si sono fatti rossi per la ragione giusta. Il piano
+      // alimentare attivo è quello che questi casi hanno sempre inteso avere.
+      subscription: PIANO_ALIMENTARE_ATTIVO,
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(0)) }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -131,9 +156,12 @@ describe('MenuService — gate misure', () => {
 
   it('2° giorno del ciclo nel futuro → non bloccante', async () => {
     const prisma = {
-      // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
-      // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
-      subscription: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+      // ⛔ **QUI CI VUOLE UN PIANO VERO, e prima non c'era** (12/9). Queste righe dicevano
+      // «nessun abbonamento», usandolo come scorciatoia per «non è Monitoraggio»: da quando il
+      // gate esce con `level: 'none'` a chi non ha un piano, la scorciatoia rendeva la premessa
+      // di questi test **falsa**, e due si sono fatti rossi per la ragione giusta. Il piano
+      // alimentare attivo è quello che questi casi hanno sempre inteso avere.
+      subscription: PIANO_ALIMENTARE_ATTIVO,
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(1)) }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn() },
@@ -145,15 +173,146 @@ describe('MenuService — gate misure', () => {
 
   it('misura del ciclo presente → non bloccante', async () => {
     const prisma = {
-      // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
-      // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
-      subscription: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+      // ⛔ **QUI CI VUOLE UN PIANO VERO, e prima non c'era** (12/9). Queste righe dicevano
+      // «nessun abbonamento», usandolo come scorciatoia per «non è Monitoraggio»: da quando il
+      // gate esce con `level: 'none'` a chi non ha un piano, la scorciatoia rendeva la premessa
+      // di questi test **falsa**, e due si sono fatti rossi per la ragione giusta. Il piano
+      // alimentare attivo è quello che questi casi hanno sempre inteso avere.
+      subscription: PIANO_ALIMENTARE_ATTIVO,
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-1)) }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
     };
     const res = await makeService(prisma).measurementGate('c1');
     expect(res.blocking).toBe(false);
+  });
+
+  /**
+   * ⛔ **SENZA UN PIANO IL GATE TACE — e soprattutto non blocca l'app** (12/9).
+   *
+   * Il difetto che questi casi chiudono: su un'ex cliente resta l'ultimo `menuDay` di mesi fa e
+   * nessuna misura dentro quel ciclo, quindi `cycleNeedsMeasure` rispondeva `true` **per sempre**.
+   * Il promemoria misure partiva ogni giorno e, passate le ore di grazia, il livello diventava
+   * `locked`: chi apriva l'app dopo la fine del percorso ci trovava il muro con scritto «Contatta
+   * la tua coach per sbloccare la app», per una pesata che serviva a un menu che non sarebbe mai
+   * arrivato.
+   *
+   * ⚠️ Le fixture qui **hanno tutto quello che serviva a bloccare** — un ciclo scaduto e nessuna
+   * misura — così l'unica cosa che cambia la risposta è il piano. Togliendo il cancello dal
+   * prodotto questi tre diventano rossi; l'ho verificato prima di scriverli.
+   */
+  describe('⛔ chi non ha più un piano', () => {
+    /** Il ciclo è scaduto da tre giorni e nessuno si è pesato: tutto pronto per bloccare. */
+    const cicloScadutoSenzaMisure = (subscription: unknown, monitoraggio: unknown = null) => ({
+      subscription,
+      menuDay: menuDayFinto({ date: D(dayIso(-3)) }),
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
+      measurement: { findFirst: jest.fn().mockResolvedValue(null) },
+      monitoringPeriod: { findFirst: jest.fn().mockResolvedValue(monitoraggio) },
+    });
+
+    it('piano finito ieri: niente richiesta e niente muro', async () => {
+      const prisma = cicloScadutoSenzaMisure({
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'sub', status: 'active', startDate: D(dayIso(-40)), endDate: D(dayIso(-1)), plan: { period: '1m' } },
+        ]),
+      });
+      const res = await makeService(prisma).measurementGate('c1');
+      expect(res).toEqual({ required: false, blocking: false, cycleDate: null, level: 'none', since: null, lockedMessage: null });
+      // ⚠️ Non basta che non blocchi: il muro è il `lockedMessage`, ed è quello che la cliente legge.
+      expect(res.lockedMessage).toBeNull();
+      expect(res.level).not.toBe('locked');
+    });
+
+    /**
+     * ⚠️ **La riga con la fine già passata torna comunque da `attivoInCorso`** (l'ultimo ramo di
+     * quella funzione, che serve a non far sparire il piano dalla scheda di chi la sta guardando).
+     * Un cancello scritto come `if (!attivoInCorso(...))` sarebbe verde proprio per chi deve
+     * fermare: qui si guarda anche `endDate`, e questo caso è quello che lo dimostra.
+     */
+    it('⚠️ un solo piano, scaduto: `attivoInCorso` lo restituisce lo stesso, il gate no', async () => {
+      const soloScaduto = [{ id: 'sub', status: 'active', startDate: D(dayIso(-90)), endDate: D(dayIso(-30)), plan: { period: '3m' } }];
+      const prisma = cicloScadutoSenzaMisure({
+        findFirst: jest.fn().mockResolvedValue(soloScaduto[0]),
+        findMany: jest.fn().mockResolvedValue(soloScaduto),
+      });
+      const res = await makeService(prisma).measurementGate('c1');
+      expect(res.required).toBe(false);
+      expect(res.level).toBe('none');
+    });
+
+    it('mai comprato niente: stesso silenzio', async () => {
+      const prisma = cicloScadutoSenzaMisure({
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+      });
+      const res = await makeService(prisma).measurementGate('c1');
+      expect(res.required).toBe(false);
+      expect(res.blocking).toBe(false);
+    });
+
+    /**
+     * ⛔ **Il monitoraggio OMAGGIO non è un abbonamento** e i menu di rientro li riceve: se il gate
+     * lo staccasse, chi riceve menu non si vedrebbe più chiedere il peso — lo stato chiuso l'11/8.
+     * Qui il gate deve tornare a chiedere.
+     */
+    it('⛔ nel monitoraggio omaggio la pesata si chiede ancora', async () => {
+      const prisma = cicloScadutoSenzaMisure(
+        { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+        { id: 'mon-1' },
+      );
+      const res = await makeService(prisma).measurementGate('c1');
+      expect(res.required).toBe(true);
+    });
+
+    /**
+     * ⚠️ **Il cancello sta PRIMA delle letture del ciclo.** `measurementGate` lo chiama l'app a
+     * ogni apertura e il motore degli avvisi per ogni cliente: spostandolo dopo, il comportamento
+     * resterebbe corretto e nessun'altra riga diventerebbe rossa.
+     */
+    it('⚠️ e il calendario dei menu non si legge nemmeno', async () => {
+      const prisma = cicloScadutoSenzaMisure({
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+      });
+      await makeService(prisma).measurementGate('c1');
+      expect(prisma.menuDay.findFirst).not.toHaveBeenCalled();
+      expect(prisma.measurement.findFirst).not.toHaveBeenCalled();
+    });
+
+    /**
+     * ⚠️ **`queued` passa il cancello, ed è voluto** (voce 258): nella finestra di anteprima le
+     * misure di partenza si chiedono già, prima che il piano cominci. Un cancello scritto su
+     * `status: 'active'` invece che su `STATI_CON_UN_PIANO` lascerebbe la cliente che comincia
+     * lunedì senza nessuna richiesta — e senza misura il primo menu non parte.
+     */
+    it('⚠️ il piano comincia lunedì: la richiesta resta viva', async () => {
+      const prisma = cicloScadutoSenzaMisure({
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'sub', status: 'queued', startDate: D(dayIso(2)), endDate: D(dayIso(32)), plan: { period: '1m' } },
+        ]),
+      });
+      const res = await makeService(prisma).measurementGate('c1');
+      expect(res.required).toBe(true);
+      expect(res.cycleDate).toBe(dayIso(-3));
+      /**
+       * ⛔ **QUESTA RIGA DICE UNA COSA CHE NON VA, e la dice apposta** (trovata dalla revisione
+       * avversariale, 12/9 — difetto **preesistente**, non introdotto dal cancello).
+       *
+       * La cliente ha finito un percorso e ne ha ricomprato uno che parte lunedì. Il ciclo però lo
+       * si calcola sull'ultimo `menuDay`, che è quello del piano **precedente**: scaduto da giorni,
+       * quindi oltre le ore di grazia. Risultato: `locked`, cioè «Contatta la tua coach per
+       * sbloccare la app» a una persona che ha appena ripagato, per una pesata che serve a un ciclo
+       * chiuso.
+       *
+       * ⚠️ Si scrive come **fotografia**, non come desiderato: il giorno che qualcuno sistema il
+       * ciclo del rientro, questa riga diventa rossa e lo si sa. Voce
+       * `muro-misure-sul-rientro` nell'elenco lavori.
+       */
+      expect(res.level).toBe('locked');
+    });
   });
 
   const deliveryPrisma = (over: Record<string, unknown>) => ({

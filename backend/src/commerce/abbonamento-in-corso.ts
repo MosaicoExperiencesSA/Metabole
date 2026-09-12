@@ -142,6 +142,37 @@ export function attivoInCorso<T extends AbbonamentoDatato>(subs: readonly T[], o
 }
 
 /**
+ * ⛔ **«QUESTA CLIENTE HA UN PIANO, OGGI?» — una domanda, una risposta.**
+ *
+ * Nasce il 12/9 con la decisione di Simone *«se un cliente non ha piani attivi va staccato tutto»*,
+ * e sta qui invece che in tre file perché è esattamente la forma che in questo progetto è già
+ * costata cara: la stessa domanda con due risposte in due posti. La chiedono il giro notturno
+ * delle notifiche, il gate delle misure e gli avvisi alla coach; se divergessero, una cliente
+ * smetterebbe di ricevere le notifiche ma resterebbe con l'app murata, o viceversa.
+ *
+ * ⚠️ **Non basta `attivoInCorso(...)` diverso da `null`.** Quella funzione, al suo ultimo ramo,
+ * restituisce una riga anche quando la fine è **già passata** — di proposito, per non far sparire
+ * il piano dalla scheda di chi la sta guardando. Un cancello scritto `if (!attivoInCorso(...))`
+ * sarebbe quindi verde proprio per chi deve fermare. Qui si guarda anche `endDate`.
+ *
+ * ⚠️ **Il Monitoraggio e il Mantenimento contano** (decisione di Simone, 12/9): sono abbonamenti
+ * attivi e pagati. È la differenza con `filtroClienteConPianoAttivo` (`common/piano-attivo.ts`),
+ * che il monitoraggio lo esclude apposta perché risponde a un'altra domanda — «il motore ha un
+ * piano alimentare da correggere?». Le due non vanno scambiate.
+ *
+ * ⚠️ **`queued` conta** (voce 258): nella finestra di anteprima i menu si compongono già e le
+ * misure di partenza si chiedono già. Lo tiene dentro `attivoInCorso`.
+ *
+ * ⚠️ È **pura**: le righe le legge chi chiama, con la `select` che gli serve. Un helper che facesse
+ * anche la query costringerebbe tre chiamanti a una lettura in più di quella che fanno già.
+ */
+export function conUnPianoOggi(subs: readonly AbbonamentoDatato[], oggi: Date = new Date()): boolean {
+  const inCorso = attivoInCorso(subs, oggi);
+  if (!inCorso) return false;
+  return !inCorso.endDate || inCorso.endDate.getTime() >= aGiorno(oggi).getTime();
+}
+
+/**
  * Il piano in coda dietro a quello in corso, se c'è. Serve a chi deve **dirlo** — la matita che
  * avvisa prima di sovrapporre, e la pastiglia che scrive «in coda dal 25/08» invece di un secondo
  * «Attivo» identico al primo.

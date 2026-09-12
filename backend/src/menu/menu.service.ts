@@ -42,6 +42,7 @@ import { EventsService } from '../calendar/events.service';
 import { DietMatchProfile, pickDietFor } from '../catalog/pick-diet';
 import { pastiPromessiCheMancano } from '../catalog/struttura-per-digiuno';
 import { attivoInCorso } from '../commerce/abbonamento-in-corso';
+import { loStiamoSeguendo } from '../common/lo-stiamo-seguendo';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { statoViaggioAttivo } from '../common/stato-viaggio';
 import { giornoDiRientro, periodoLeggibile, rientroInArrivo } from '../pause/giorno-di-rientro';
@@ -2122,8 +2123,31 @@ export class MenuService {
       where: { clientId, status: { in: STATI_CON_UN_PIANO as never } },
       select: { id: true, status: true, startDate: true, endDate: true, plan: { select: { period: true } } },
     })) as ({ plan: { period: string | null } | null } & { status: string; startDate: Date | null; endDate: Date | null })[];
-    const inMonitoraggio = attivoInCorso(attiviQui);
-    if (inMonitoraggio?.plan?.period === 'monitoring') {
+    const inCorsoQui = attivoInCorso(attiviQui);
+    /**
+     * ⛔ **SENZA UN PIANO NON SI CHIEDONO LE MISURE, E SOPRATTUTTO NON SI BLOCCA L'APP**
+     * (Simone, 12/9: «se un cliente non ha piani attivi va staccato tutto»).
+     *
+     * Qui il piano non si guardava affatto: si usciva presto solo per il Monitoraggio. Su un'ex
+     * cliente resta l'ultimo `menuDay` di mesi fa e nessuna misura dentro quel ciclo, quindi
+     * `cycleNeedsMeasure` rispondeva `true` **per sempre**. Le conseguenze erano due, e la seconda
+     * è peggiore della prima: il promemoria misure partiva ogni giorno, e passate le ore di
+     * grazia il livello diventava `locked` — cioè chi apriva l'app dopo la fine del percorso ci
+     * trovava il muro con scritto **«Contatta la tua coach per sbloccare la app»**, per una
+     * pesata che serve a un menu che non arriverà.
+     *
+     * ⚠️ **`loStiamoSeguendo` e non `attivoInCorso(...) !== null`**: quella restituisce una riga
+     * anche a fine già passata, quindi un cancello scritto così sarebbe verde proprio per chi deve
+     * fermare. La domanda ha una risposta sola, in `common/lo-stiamo-seguendo.ts` — la stessa che
+     * usano il giro notturno delle notifiche e la coda della coach. Lì c'è anche il perché
+     * Monitoraggio e Mantenimento contano, perché ci sta dentro il monitoraggio **omaggio** (che
+     * non è un abbonamento e i menu di rientro li riceve), e perché `queued` passa (voce 258:
+     * nella finestra di anteprima le misure di partenza si chiedono già).
+     */
+    if (!(await loStiamoSeguendo(this.prisma, clientId, attiviQui))) {
+      return { required: false, blocking: false, cycleDate: null, level: 'none', since: null, lockedMessage: null };
+    }
+    if (inCorsoQui?.plan?.period === 'monitoring') {
       return { required: false, blocking: false, cycleDate: null, level: 'none', since: null, lockedMessage: null };
     }
 

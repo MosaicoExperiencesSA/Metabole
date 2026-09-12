@@ -4,6 +4,8 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { coachTeamScope } from '../common/coach-team';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { MenuService } from '../menu/menu.service';
+import { loStiamoSeguendo } from '../common/lo-stiamo-seguendo';
+import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
 import { PARAMETRO_SOGLIA, SOGLIA_GIORNI_DEFAULT, daRiaprire } from './rinvio-gestito';
@@ -95,8 +97,62 @@ export class AlertsService {
       select: { assignedCoachId: true, character: true, planStartDate: true },
     });
     const coachId = profile?.assignedCoachId ?? null;
+
+    /**
+     * ⛔ **NIENTE PIANO, NESSUN AVVISO ALLA COACH** (Simone, 12/9: «se un cliente non ha piani
+     * attivi va staccato tutto», e «anche alla coach»).
+     *
+     * ⚠️ Stesso difetto del giro notturno delle notifiche, in un secondo organo — trovato
+     * rileggendo il lavoro prima di consegnarlo, e non dalla richiesta. `recomputeAllBatch` prende
+     * **tutte** le clienti con l'onboarding fatto, esattamente come faceva `generateDailyBatch`:
+     * su un'ex cliente «inattiva da N giorni», «acqua sotto l'obiettivo», «nessun check-in» e
+     * «stallo» restano veri per sempre, quindi la coda della coach teneva righe che non si
+     * chiudono e su cui non c'è niente da fare.
+     *
+     * ⚠️ **Non si esce con un `return` secco**: i vecchi vanno **chiusi**, o resterebbero lì in
+     * eterno — cioè il difetto peggiore dei due, congelato invece che corretto.
+     *
+     * ⚠️ La domanda è la stessa delle notifiche e del gate misure, e la risposta arriva dallo
+     * stesso posto (`loStiamoSeguendo`): Monitoraggio, Mantenimento e monitoraggio omaggio contano.
+     */
+    const suoiPiani = (await this.prisma.subscription.findMany({
+      where: { clientId, status: { in: STATI_CON_UN_PIANO as never } },
+      select: { status: true, startDate: true, endDate: true },
+    })) as { status: string; startDate: Date | null; endDate: Date | null }[];
+    if (!(await loStiamoSeguendo(this.prisma, clientId, suoiPiani))) {
+      return this.chiudiPerchePercorsoFinito(clientId);
+    }
+
     const desired = await this.computeDesired(clientId, profile);
     return this.sync(clientId, coachId, desired);
+  }
+
+  /**
+   * ⛔ **CHIUDE LA CODA DELLA COACH SU CHI NON SEGUIAMO PIÙ — tranne quello che ha cambiato
+   * scrivania.**
+   *
+   * ⚠️ **Non passa da `sync([])`, e la differenza non è di stile.** `sync` risolve **tutto** quello
+   * che non è chiuso, e `STATI_NON_CHIUSI` comprende `escalated`: un avviso **inoltrato al
+   * nutrizionista** sarebbe sparito dalla coda dei manager (`STATI_DA_FARE_MANAGER`) mentre la riga
+   * `Escalation` resta aperta nel database. Il problema clinico ci sarebbe ancora, la coda che lo
+   * mostra no — e la fine di un percorso non è una risposta a una domanda clinica. Trovato dalla
+   * revisione avversariale prima di consegnare.
+   *
+   * ⚠️ Si chiudono `open` e `handled`, e **non** si passa da `daRiaprire`: un «gestito» non va
+   * riaperto per poi essere chiuso nello stesso giro.
+   */
+  private async chiudiPerchePercorsoFinito(clientId: string): Promise<{ desired: number; resolved: number }> {
+    const daChiudere = (await this.prisma.alert.findMany({
+      where: { clientId, status: { in: ['open', 'handled'] } },
+      select: { id: true },
+    })) as { id: string }[];
+    if (daChiudere.length) {
+      await this.prisma.alert.updateMany({
+        where: { id: { in: daChiudere.map((a) => a.id) } },
+        data: { status: 'resolved' },
+      });
+    }
+    return { desired: 0, resolved: daChiudere.length };
   }
 
   /** Ricalcola per tutti i clienti attivi (chiamato dal cron giornaliero). */

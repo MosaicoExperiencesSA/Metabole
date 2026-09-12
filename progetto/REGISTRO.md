@@ -18,6 +18,94 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-12
+
+- `[Sviluppo]` ⛔ **Niente piano, niente notifiche — né alla cliente né alla coach.** Decisione di
+  Simone del 12/9 (*«se un cliente non ha piani attivi va staccato tutto»*, *«anche alla coach:
+  quando arriva una notifica di marketing ogni 2 mesi basta»*). Il giro notturno calcolava
+  `hasActivePlan` e lo guardava in **due** punti su dieci — il suggerimento 20-4 e il messaggio del
+  motore: tutto il resto partiva lo stesso e **non smetteva mai**. Alla cliente il promemoria
+  check-in e quello delle misure ogni giorno; alla coach `no_checkin_coach_alert` ogni giorno, col
+  numero dei giorni che cresceva all'infinito, e `stall_coach_alert`, che rilegge l'**ultima**
+  decisione del motore — ferma da quando il piano è finito.
+  ⚠️ Era **l'ultimo giro rimasto senza il cancello** che hanno già il motore e la coda della
+  nutrizionista (`filtroClienteConPianoAttivo`), l'aderenza, i solleciti misure e le push del
+  digiuno: queste ultime corrette il 21/8 per lo stesso identico difetto, sullo stesso file.
+  ⛔ **E l'app restava murata**, che è la parte peggiore: `measurementGate` non guardava il piano,
+  quindi su un'ex cliente resta l'ultimo `menuDay` di mesi fa, `cycleNeedsMeasure` rispondeva sì
+  **per sempre**, e dopo le ore di grazia il livello diventava `locked` — chi riapriva l'app dopo
+  la fine del percorso ci trovava **«Contatta la tua coach per sbloccare la app»**, per una pesata
+  che serviva a un menu che non sarebbe mai arrivato.
+  ⚠️ **Monitoraggio e Mantenimento contano come piano** (decisione di Simone): il cancello è
+  `STATI_CON_UN_PIANO` letto da `attivoInCorso` — **non** `filtroClienteConPianoAttivo`, che il
+  monitoraggio lo esclude apposta e staccherebbe chi paga. Si guarda anche `endDate`, perché
+  `attivoInCorso` restituisce una riga anche a fine passata; `queued` passa (voce 258).
+  ⚠️ **L'unica eccezione è il promemoria della visita di domani**, alla cliente e alla
+  nutrizionista: una visita si compra a parte, è già pagata e già in agenda. Una funzione sola con
+  due chiamanti — una regola scritta due volte diverge, ed è già successo qui.
+  ⚠️ Il cancello sta **prima** delle sei letture in parallelo: su un'ex cliente la notte costa due
+  letture invece di quindici, e il database di produzione sta all'80% di CPU.
+
+- `[Sviluppo]` **Il richiamo ogni due mesi a chi non ha più un piano** — l'altra metà della stessa
+  decisione. Innesco `wb_ricorrente`: una email ogni **60 giorni**, al massimo **6 volte**, a chi
+  ha il percorso a pagamento finito e non è tornata, **con copia alla coach** come tutte le email
+  del ciclo di vita. Due parametri in **Parametri → Marketing**
+  (`winback_ricorrente_giorni`, `winback_ricorrente_max`; zero spegne).
+  ⚠️ **Nasce SPENTO**, come `trial_g6_offer`: il primo giro dopo l'accensione scrive a **tutte** le
+  ex clienti con il piano scaduto da 60, 120, … 360 giorni. Si accende da Marketing → Automazione.
+  ⛔ **Si guarda il giorno esatto**, non «almeno N giorni» — è la ragione del tetto invece di un
+  ciclo aperto. Se lo scan non gira quel giorno, **quel** richiamo si perde e il prossimo arriva
+  due mesi dopo: allargare la finestra ne farebbe partire due vicini a chi era già stato scritto.
+  ⚠️ Il numero del giro sta **dentro la chiave di deduplica**: senza, ne partirebbe **uno solo in
+  tutto**, e per due mesi nessuno se ne accorgerebbe. Il giudizio sta nel modulo puro
+  `marketing/richiamo-ricorrente.ts`.
+
+- `[Sviluppo]` ⛔ **La revisione avversariale ha trovato sei difetti VERI nel lavoro appena scritto**,
+  e due erano grossi. ⛔ **Il richiamo non sarebbe partito quasi mai**: filtrava `status: 'expired'`,
+  e in tutto il backend quello stato lo scrivono tre posti, nessuno dei quali copre il caso normale
+  — un piano a pagamento arrivato alla fine resta `active` con `endDate` passata. Si sarebbe
+  staccato tutto senza che arrivasse niente in cambio. ⛔ **Il monitoraggio OMAGGIO veniva
+  staccato mentre riceve i menu di rientro**: non è un abbonamento (`monitoring.service.start` lo
+  concede solo a chi non ha righe in ballo), quindi guardando i soli abbonamenti risultava «senza
+  piano» — si sarebbe ricreato lo stato chiuso l'11/8, i menu che arrivano e nessuno che chiede il
+  peso. La domanda ora è una sola, in `common/lo-stiamo-seguendo.ts`, e comprende il monitoraggio
+  omaggio. ⛔ **E si chiudevano anche gli avvisi inoltrati al nutrizionista** (`sync([])` risolve
+  anche gli `escalated`): la fine di un percorso non è una risposta a una domanda clinica.
+  Più tre minori: il filtro «è l'ultimo piano» che una prova gratuita finita dopo faceva sopprimere
+  **per sempre** (e il pari merito che mandava due email), l'email che senza coach si firmava
+  **«la tua coach, la tua coach»**, e i due parametri che con `Infinity` facevano **cadere lo scan**.
+
+- `[Sviluppo]` **Cinque difetti preesistenti trovati di rimbalzo, messi in elenco lavori e NON
+  toccati**: `wb_t3`/`wb_t7` che non partono quasi mai per lo stesso motivo del richiamo (non
+  corretti apposta: sono accesi di default e partirebbero di colpo su tutto lo storico — decisione
+  di Simone) · il **muro delle misure sul rientro**, cioè «Contatta la tua coach» a chi ha appena
+  ricomprato, perché il ciclo si calcola sull'ultimo menu del percorso vecchio (la prova lo
+  **fotografa**, così il giorno che si corregge diventa rossa) · i `CoachTask` che non si chiudono
+  mai da soli · ⚠️ **`measures_unlock_hours` seminato a 48 mentre il codice ha 4 e `menu.service.ts`
+  porta scritta la decisione dell'11/8: quella decisione non è mai entrata in vigore**, e si
+  corregge dalla pagina Parametri perché il seed non riscrive i valori · un avviso riaperto a mano
+  su un'ex cliente che si richiude al primo refresh.
+
+- `[Sviluppo]` ⚠️ **Due prove vecchie si sono fatte rosse per la ragione giusta.** In
+  `menu-measurement-gate.spec.ts` cinque casi dichiaravano «nessun abbonamento» usandolo come
+  scorciatoia per «non è Monitoraggio»: col cancello nuovo quella scorciatoia rende **falsa la loro
+  premessa**. Ora dichiarano il piano alimentare attivo che hanno sempre inteso avere
+  (`PIANO_ALIMENTARE_ATTIVO`). Le undici prove nuove sono state verificate **togliendo** il pezzo
+  di prodotto che sorvegliano — cancello via: 5 rosse su 7; `conPiano = true`: 3 su 4; cancello
+  ristretto a `active`: rossa quella del piano in coda; `where` con un filtro su `plan`: rossa
+  quella del Monitoraggio.
+  ⛔ **Il mutation testing è stato fatto due volte, e il primo giro ha trovato tredici mutazioni
+  sopravvissute** — fra cui *tutte* quelle sul richiamo: il modulo puro era provato, il fatto che
+  qualcuno lo **usasse** no, quindi scambiare i due argomenti (sessanta email a sei giorni l'una
+  dall'altra) o fissare il giro a 1 (una email sola in tutto) restava verde. Le prove finali sono
+  trentacinque in sei file, due dei quali nuovi, e i finti Prisma **filtrano come il database vero**
+  su stato, prezzo e finestra: senza, le mutazioni «togli `queued`» e «escludi il Monitoraggio»
+  sopravvivevano entrambe.
+  ⚠️ **Nessuna prova rossa; ~68 suite non compilano sul Mac** perché il client Prisma di quella
+  macchina è più vecchio dello schema (errori in otto file non toccati, e `prisma generate` lì non
+  arriva a `binaries.prisma.sh`). Su Render il client si rigenera al deploy.
+
+
 ## 2026-09-09
 
 - `[Sviluppo]` ⛔ **Le cinque porte di Vera passano anche sui menu che la cliente ha già aperto** —

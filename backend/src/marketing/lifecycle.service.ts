@@ -12,6 +12,9 @@ import { deriveSegment, prefsToken } from '../common/funnel-segment';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { prezzoEffettivo } from '../commerce/prezzo-piano';
 import { STATI_QUALCOSA_IN_BALLO } from '../commerce/stati-abbonamento';
+import { chiaveRichiamo, giorniIndietro, giriDelRichiamo } from './richiamo-ricorrente';
+import { loStiamoSeguendo } from '../common/lo-stiamo-seguendo';
+import { nomeDiSaluto } from './richiamo-ricorrente';
 
 export type LifecycleKind = 'event' | 'scheduled';
 
@@ -83,6 +86,10 @@ export const LIFECYCLE_CATALOG: TriggerDef[] = [
   { key: 'trial_fine', label: 'Prova gratuita — ultimo giorno', when: 'Prova gratuita che finisce oggi, senza un piano già attivo', kind: 'scheduled', implemented: true },
   { key: 'wb_t3', label: 'Winback T+3', when: 'Piano scaduto da 3 giorni senza rinnovo', kind: 'scheduled', implemented: true },
   { key: 'wb_t7', label: 'Winback T+7', when: 'Piano scaduto da 7 giorni senza rinnovo', kind: 'scheduled', implemented: true },
+  // Il richiamo RICORRENTE (Simone, 12/9: «una notifica di marketing ogni 2 mesi basta»). È l'unica
+  // cosa che continua ad arrivare a chi non ha più un piano: tutto il resto — promemoria check-in,
+  // misure, avvisi alla coach — da oggi si spegne con il piano.
+  { key: 'wb_ricorrente', label: 'Winback ricorrente — ogni 2 mesi (spento di default)', when: 'Piano a pagamento scaduto, ogni N giorni (60) fino a M volte (6)', kind: 'scheduled', implemented: true },
   { key: 'wb_survey', label: 'Winback sondaggio', when: 'Dopo la disdetta', kind: 'scheduled', implemented: false },
   { key: 'wb_stagionale', label: 'Winback stagionale', when: 'Campagna stagionale', kind: 'scheduled', implemented: false },
   { key: 'tx_rinnovo_ok', label: 'TX rinnovo ok', when: 'Rinnovo pagato', kind: 'event', implemented: false },
@@ -218,7 +225,12 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Inneschi che partono SOLO se accesi esplicitamente (opt-in, non opt-out). */
-  private static readonly DEFAULT_OFF = new Set(['trial_g6_offer']);
+  /**
+   * ⚠️ `wb_ricorrente` nasce **spento**, come `trial_g6_offer`. Il primo giro dopo l'accensione
+   * scrive a **tutte** le ex clienti il cui piano è scaduto da 60, 120, … giorni: è una campagna,
+   * e una campagna si accende quando qualcuno decide, non perché è stata distribuita.
+   */
+  private static readonly DEFAULT_OFF = new Set(['trial_g6_offer', 'wb_ricorrente']);
 
   /** Un innesco è attivo se il master è ON e il suo flag non è esplicitamente false
    *  (eccezione: gli inneschi DEFAULT_OFF richiedono un sì esplicito). */
@@ -798,6 +810,131 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
         });
         bump(wt.key, r);
       }
+    }
+
+    /**
+     * 4-quater-ter) ⛔ **IL RICHIAMO RICORRENTE** (Simone, 12/9: «se un cliente non ha piani attivi
+     * va staccato tutto» — «anche alla coach, una notifica di marketing ogni 2 mesi basta»).
+     *
+     * Dallo stesso giorno in cui il giro notturno smette di scrivere a chi non ha più un piano,
+     * questa è **l'unica** cosa che continua ad arrivargli. E arriva anche alla coach, perché
+     * `sendLifecycle` manda copia a lei di ogni email del ciclo di vita (`copiaCoach`): una ogni
+     * due mesi per cliente, che è la cadenza chiesta.
+     *
+     * ⚠️ **Si guarda il giorno esatto, non «sono passati almeno N giorni»**, ed è la ragione per
+     * cui c'è un tetto invece di un ciclo aperto. Con una finestra «almeno», ogni giro dovrebbe
+     * leggere **tutti** gli abbonamenti scaduti da sempre per scartarli quasi tutti; qui invece
+     * sono `max` letture per giorno esatto (`endDate` = oggi − n·cadenza), la stessa forma di
+     * `wb_t3` e `wb_t7`, che l'indice regge.
+     *
+     * ⛔ **La conseguenza va detta invece di scoprirla**: se lo scan non gira nel giorno giusto —
+     * deploy lungo, master spento, interruttore acceso a metà giornata — **quel** richiamo si
+     * perde e il prossimo arriva due mesi dopo. Non si recupera allargando la finestra: allargarla
+     * farebbe partire due richiami vicini a chi era già stato scritto.
+     *
+     * ⚠️ Solo piani **a pagamento** e solo l'**ultimo** piano della cliente: chi ne ha avuti tre
+     * riceverebbe altrimenti tre richiami in tre giorni diversi, uno per ogni scadenza vecchia.
+     */
+    if (on('wb_ricorrente')) {
+      const [cadenza, tetto] = await Promise.all([
+        this.configParams.getNumber('winback_ricorrente_giorni', 60),
+        this.configParams.getNumber('winback_ricorrente_max', 6),
+      ]);
+      // Quanti giri, di quanto tornare indietro e con che chiave: `richiamo-ricorrente.ts`.
+      // Una cadenza o un tetto sotto 1 spengono il richiamo invece di farlo impazzire — con
+      // cadenza 0 il primo giro scriverebbe il giorno stesso in cui il percorso finisce.
+      for (const n of giriDelRichiamo(cadenza, tetto)) {
+        const range = this.dayRange(giorniIndietro(n, cadenza));
+          /**
+           * ⛔ **NON SI GUARDA `status: 'expired'`, E QUESTO E' IL PUNTO PIU' IMPORTANTE DEL BLOCCO**
+           * (trovato dalla revisione avversariale prima di consegnare).
+           *
+           * In tutto il backend `expired` su `Subscription` lo scrivono **tre** posti, e nessuno
+           * copre il caso normale: `expireTrialsAndPurge` (solo `priceCents: 0`, cioè le prove),
+           * `handleSubscriptionDeleted` (solo il webhook Stripe di abbonamento cancellato) e
+           * `monitoring.service` (altra tabella). **Nessun cron marca `expired` un piano a
+           * pagamento arrivato alla sua fine**: la riga resta `active` con `endDate` passata — lo
+           * dice `abbonamento-in-corso.ts` («il cron di scadenza in ritardo») e lo sa già
+           * `crm.chiudiPercorsiConclusi`, che infatti guarda `endDate` e non lo stato.
+           *
+           * Filtrando su `expired`, il richiamo non avrebbe trovato quasi nessuno: si sarebbe
+           * staccato tutto e non sarebbe arrivato niente in cambio, cioè metà della decisione del
+           * 12/9 applicata. ⚠️ `wb_t3` e `wb_t7` (qui sopra) hanno lo stesso difetto da prima, e
+           * NON è stato toccato: correggerlo li farebbe partire di colpo su tutto lo storico, ed è
+           * una decisione di Simone, non una correzione di rimbalzo.
+           *
+           * ⚠️ `cancelled` resta fuori: un rimborso o un annullamento non è un percorso finito.
+           */
+          const subs = (await this.prisma.subscription.findMany({
+            where: {
+              status: { in: ['active', 'expired'] as never },
+              plan: { priceCents: { gt: 0 } },
+              endDate: { gte: range.gte, lt: range.lt },
+            } as never,
+            select: {
+              id: true, clientId: true, endDate: true,
+              client: { select: { email: true, firstName: true, deletedAt: true, clientProfile: { select: { name: true, assignedCoach: { select: { displayName: true } } } } } },
+            },
+            take: LifecycleService.BATCH,
+          })) as { id: string; clientId: string; endDate: Date | null; client: { email: string; firstName: string | null; deletedAt: Date | null; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null } | null } | null }[];
+          for (const sub of subs) {
+            if (!sub.client || sub.client.deletedAt) continue;
+            /**
+             * ⚠️ **La stessa domanda che spegne le notifiche**, e non un controllo suo: è tornata,
+             * sta pagando, ha un Mantenimento, o è nel monitoraggio omaggio (che non è un
+             * abbonamento). Se le stiamo ancora dando qualcosa, il richiamo è fuori luogo.
+             */
+            if (await loStiamoSeguendo(this.prisma, sub.clientId)) continue;
+            /**
+             * Non è l'ultimo percorso che ha avuto: il richiamo lo farà quello più recente, nel suo
+             * giorno.
+             *
+             * ⚠️ **Solo percorsi a pagamento e non annullati.** Con un `where` sulla sola
+             * `endDate`, una **prova gratuita** finita dopo — o una riga `cancelled` da rimborso —
+             * sopprimeva il richiamo per sempre: quella riga non è mai il punto di partenza
+             * (`priceCents > 0`), quindi nessun giro l'avrebbe mai mandato.
+             * ⚠️ **E il pari merito**: due piani che finiscono lo stesso giorno non sono l'uno
+             * «più recente» dell'altro, quindi partivano **due email identiche** e due copie alla
+             * coach. Il pareggio lo rompe l'id.
+             */
+            const piuRecente = sub.endDate
+              ? await this.prisma.subscription.findFirst({
+                  where: {
+                    clientId: sub.clientId,
+                    id: { not: sub.id },
+                    status: { in: ['active', 'expired'] },
+                    plan: { priceCents: { gt: 0 } },
+                    OR: [{ endDate: { gt: sub.endDate } }, { endDate: sub.endDate, id: { lt: sub.id } }],
+                  } as never,
+                  select: { id: true },
+                })
+              : null;
+            if (piuRecente) continue;
+            const r = await this.sendLifecycle({
+              userId: sub.clientId,
+              email: sub.client.email,
+              key: 'wb_ricorrente',
+              // ⚠️ Il numero del richiamo entra nella chiave: senza, il secondo passaggio
+              // risulterebbe già inviato e ne partirebbe **uno solo in tutto**.
+              dedupeKey: chiaveRichiamo(sub.id, n),
+              /**
+               * ⚠️ **I ripieghi qui vanno scritti pensando a chi legge, non alla variabile.** A due
+               * mesi dalla fine del percorso il caso normale è **non avere più una coach
+               * assegnata**: col ripiego `'la tua coach'` e il modello che firma «{{coach}}, la
+               * tua coach», quella persona riceveva una email firmata **«la tua coach, la tua
+               * coach»**. E il nome vuoto dava «Ciao ,». Adesso il modello firma il solo
+               * `{{coach}}` — qui diventa «il team Metabole» — e il saluto porta la virgola dentro
+               * il nome, così senza nome resta «Ciao,».
+               */
+              vars: {
+                nome: nomeDiSaluto(sub.client.firstName ?? sub.client.clientProfile?.name ?? null),
+                coach: sub.client.clientProfile?.assignedCoach?.displayName ?? 'il team Metabole',
+                link: `${app}/negozio`,
+              },
+            });
+            bump('wb_ricorrente', r);
+          }
+        }
     }
 
     // 4-quater-bis) FINE PROVA GRATUITA — la prova finisce OGGI e non c'è già un altro piano.

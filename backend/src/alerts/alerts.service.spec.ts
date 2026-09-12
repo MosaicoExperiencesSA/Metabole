@@ -18,10 +18,18 @@ interface PrismaMock {
   escalation: { findFirst: jest.Mock };
   milestone: { findFirst: jest.Mock };
   analyticsEvent: { findFirst: jest.Mock };
+  subscription: { findMany: jest.Mock };
+  monitoringPeriod: { findFirst: jest.Mock };
   user: { findUnique: jest.Mock };
   staff: { findUnique: jest.Mock };
   alert: { findMany: jest.Mock; createMany: jest.Mock; updateMany: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
 }
+
+/**
+ * I piani che il finto restituisce. Un `let` e non una costante: i casi lo riscrivono prima di
+ * costruire il finto, così il filtro sul `where` resta l'unica cosa che decide.
+ */
+let pianiFinti: { status: string; startDate: Date | null; endDate: Date | null }[] = [];
 
 function basePrisma(over: Partial<Record<string, unknown>> = {}): PrismaMock {
   return {
@@ -37,6 +45,29 @@ function basePrisma(over: Partial<Record<string, unknown>> = {}): PrismaMock {
     escalation: { findFirst: jest.fn().mockResolvedValue(null) },
     milestone: { findFirst: jest.fn().mockResolvedValue(null) },
     analyticsEvent: { findFirst: jest.fn().mockResolvedValue(null) },
+    /**
+     * ⛔ **IL PIANO ATTIVO — la premessa che questi casi hanno sempre avuto senza dirla** (12/9).
+     *
+     * Dal 12/9 `recompute` chiude la coda della coach e non ne apre di nuova per chi **non ha un
+     * piano** (Simone: «se un cliente non ha piani attivi va staccato tutto», «anche alla coach»).
+     * Senza questa riga il finto rispondeva «nessun abbonamento» e quindici casi si sono fatti
+     * rossi: non erano rotti, era la loro premessa a essere rimasta implicita.
+     */
+    subscription: {
+      /**
+       * ⚠️ **IL FINTO FILTRA COME IL DATABASE VERO.** Con un `mockResolvedValue` secco, il `where`
+       * non lo guarda nessuno: si potrebbe togliere `queued` dall'elenco degli stati, o aggiungere
+       * un filtro che esclude il Monitoraggio, e restare verdi — le due divergenze contro cui
+       * mette in guardia il commento di `loStiamoSeguendo`. Trovate dal mutation testing.
+       */
+      findMany: jest.fn(async (args: { where?: Record<string, unknown> }) => {
+        const w = (args?.where ?? {}) as Record<string, never>;
+        const stati = ((w.status as { in?: string[] } | undefined)?.in) ?? null;
+        if (w.plan) return []; // un filtro sul piano escluderebbe il Monitoraggio: qui si vede
+        return pianiFinti.filter((r) => (stati ? stati.includes(r.status) : true));
+      }),
+    },
+    monitoringPeriod: { findFirst: jest.fn().mockResolvedValue(null) },
     // `coachTeamScope` legge il ruolo da prisma.user prima di arrivare a staff.
     user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
     staff: { findUnique: jest.fn().mockResolvedValue({ id: 'coach-1' }) },
@@ -72,7 +103,138 @@ const createdTypes = (prisma: PrismaMock): string[] => {
   return call ? (call[0].data as { type: string }[]).map((d) => d.type) : [];
 };
 
+beforeEach(() => {
+  pianiFinti = [{ status: 'active', startDate: D(dayIso(-10)), endDate: D(dayIso(20)) }];
+});
+
 describe('AlertsService.recompute', () => {
+  /**
+   * ⛔ **NIENTE PIANO, NESSUN AVVISO ALLA COACH** (Simone, 12/9).
+   *
+   * Su un'ex cliente «inattiva da N giorni», «nessun check-in» e «stallo» restano veri per sempre:
+   * la coda della coach teneva righe che non si chiudono e su cui non c'è niente da fare. Le
+   * fixture qui hanno tutto quello che serviva ad aprirne uno — il gate che blocca — così l'unica
+   * cosa che cambia la risposta è il piano.
+   */
+  describe('⛔ chi non ha più un piano', () => {
+    const senzaPiano = (piani: { status: string; startDate: Date | null; endDate: Date | null }[] = []) => {
+      pianiFinti = piani;
+      return basePrisma();
+    };
+
+    it('non nasce nessun avviso nuovo', async () => {
+      const prisma = senzaPiano();
+      const res = await makeService(prisma, { blocking: true, cycleDate: dayIso(-1) }).recompute('c1');
+      expect(prisma.alert.createMany).not.toHaveBeenCalled();
+      expect(res.desired).toBe(0);
+    });
+
+    /**
+     * ⛔ **E quelli già in coda si CHIUDONO.** È la differenza fra un `return` secco e il passaggio
+     * da `sync` con l'elenco vuoto: uscendo prima, le righe aperte resterebbero lì in eterno —
+     * cioè il difetto peggiore dei due, congelato invece che corretto.
+     */
+    it('⛔ e quelli già aperti si chiudono, non restano lì per sempre', async () => {
+      const prisma = senzaPiano();
+      prisma.alert.findMany.mockResolvedValue([
+        { id: 'a1', type: 'no_checkin', status: 'open', handledAt: null },
+        { id: 'a2', type: 'inactive', status: 'open', handledAt: null },
+      ]);
+      const res = await makeService(prisma, { blocking: true, cycleDate: dayIso(-1) }).recompute('c1');
+      expect(res.resolved).toBe(2);
+      const chiusure = prisma.alert.updateMany.mock.calls.filter((c) => c[0].data.status === 'resolved');
+      expect(chiusure[0][0].where.id.in.sort()).toEqual(['a1', 'a2']);
+    });
+
+    /**
+     * ⚠️ `attivoInCorso` restituisce una riga anche a fine già passata: un cancello scritto
+     * `if (!attivoInCorso(...))` sarebbe verde proprio per chi deve fermare.
+     */
+    it('⚠️ un solo piano, scaduto: conta come nessun piano', async () => {
+      const prisma = senzaPiano([{ status: 'active', startDate: D(dayIso(-60)), endDate: D(dayIso(-2)) }]);
+      await makeService(prisma, { blocking: true, cycleDate: dayIso(-1) }).recompute('c1');
+      expect(prisma.alert.createMany).not.toHaveBeenCalled();
+    });
+
+    /**
+     * ⛔ **QUELLO CHE HA CAMBIATO SCRIVANIA NON SI CHIUDE.** `sync([])` avrebbe risolto anche gli
+     * `escalated` — un avviso **inoltrato al nutrizionista** — che sarebbe sparito dalla coda dei
+     * manager mentre la riga `Escalation` resta aperta nel database: il problema clinico c'è, la
+     * coda che lo mostra no. La fine di un percorso non è una risposta a una domanda clinica.
+     */
+    it('⛔ ma un avviso inoltrato al nutrizionista resta aperto', async () => {
+      const prisma = senzaPiano();
+      // ⚠️ Anche qui il finto filtra come il database: è il `where` che deve cambiare, non il
+      // conteggio in memoria — e un finto che restituisce tutto renderebbe la prova cieca.
+      const inCoda = [
+        { id: 'a1', type: 'no_checkin', status: 'open', handledAt: null },
+        { id: 'a-clinico', type: 'escalation_open', status: 'escalated', handledAt: null },
+      ];
+      prisma.alert.findMany.mockImplementation(async (args: { where?: { status?: { in?: string[] } } }) => {
+        const stati = args?.where?.status?.in ?? null;
+        return stati ? inCoda.filter((a) => stati.includes(a.status)) : inCoda;
+      });
+      const res = await makeService(prisma, { blocking: true, cycleDate: dayIso(-1) }).recompute('c1');
+      expect(res.resolved).toBe(1);
+      // ⚠️ Si guarda la QUERY, non solo il conteggio: `sync` filtrava in memoria su un elenco che
+      // comprendeva `escalated`, e un conteggio giusto per caso non direbbe niente.
+      expect(prisma.alert.findMany.mock.calls[0][0].where.status.in).toEqual(['open', 'handled']);
+    });
+
+    /**
+     * ⚠️ **Il piano comincia lunedì: la coda della coach resta.** Un cancello scritto su
+     * `status: 'active'` invece che su `STATI_CON_UN_PIANO` svuoterebbe la scheda di chi ha già
+     * pagato e comincia fra due giorni. Il finto filtra sul `where`, quindi qui si vede.
+     */
+    it('⚠️ il piano comincia lunedì: gli avvisi restano', async () => {
+      const prisma = senzaPiano([{ status: 'queued', startDate: D(dayIso(2)), endDate: D(dayIso(32)) }]);
+      await makeService(prisma, { blocking: true, cycleDate: dayIso(-1) }).recompute('c1');
+      expect(createdTypes(prisma)).toContain('missing_measurements');
+    });
+
+    /**
+     * ⚠️ **Chi è in Monitoraggio continua a essere seguito.** Se qualcuno passasse a
+     * `filtroClienteConPianoAttivo` — che il monitoraggio lo esclude apposta — la coach smetterebbe
+     * di vedere la coda di chi paga €19 al mese. Il finto risponde vuoto se la query filtra sul
+     * piano, quindi la divergenza si vede.
+     */
+    it('⚠️ chi è in Monitoraggio resta nella coda della coach', async () => {
+      const prisma = senzaPiano([{ status: 'active', startDate: D(dayIso(-10)), endDate: D(dayIso(20)) }]);
+      await makeService(prisma, { blocking: true, cycleDate: dayIso(-1) }).recompute('c1');
+      expect(createdTypes(prisma)).toContain('missing_measurements');
+    });
+
+    /** ⚠️ E il monitoraggio OMAGGIO, che non è un abbonamento ma riceve i menu di rientro. */
+    it('⚠️ e chi è nel monitoraggio omaggio pure', async () => {
+      const prisma = senzaPiano();
+      prisma.monitoringPeriod.findFirst.mockResolvedValue({ id: 'mon-1' });
+      await makeService(prisma, { blocking: true, cycleDate: dayIso(-1) }).recompute('c1');
+      expect(createdTypes(prisma)).toContain('missing_measurements');
+    });
+
+    /**
+     * ⚠️ **Il cancello sta PRIMA del calcolo.** `recomputeAllBatch` gira su tutte le clienti con
+     * l'onboarding fatto: spostandolo dopo `computeDesired`, ogni notte si calcolerebbero misure,
+     * check-in, acqua, ricette e stallo di ogni ex cliente per buttarli via. Il comportamento
+     * resterebbe corretto e nessun'altra riga diventerebbe rossa: questa sì.
+     */
+    it('⚠️ e non si calcola nemmeno il resto della sua giornata', async () => {
+      const prisma = senzaPiano();
+      await makeService(prisma, { blocking: true, cycleDate: dayIso(-1) }).recompute('c1');
+      expect(prisma.measurement.findMany).not.toHaveBeenCalled();
+      expect(prisma.dailyCheckin.findMany).not.toHaveBeenCalled();
+      expect(prisma.recipeRating.findMany).not.toHaveBeenCalled();
+      expect(prisma.waterLog.findMany).not.toHaveBeenCalled();
+    });
+
+    // Controprova: senza, un cancello sempre chiuso passerebbe i tre casi qui sopra.
+    it('con il piano attivo l\'avviso nasce come prima', async () => {
+      const prisma = basePrisma();
+      await makeService(prisma, { blocking: true, cycleDate: dayIso(-1) }).recompute('c1');
+      expect(createdTypes(prisma)).toContain('missing_measurements');
+    });
+  });
+
   it('crea missing_measurements quando il gate blocca', async () => {
     const prisma = basePrisma();
     const svc = makeService(prisma, { blocking: true, cycleDate: dayIso(-1) });
@@ -339,15 +501,28 @@ describe('AlertsService.listForCoach — cosa resta da fare', () => {
    * l'avviso chiuso rinasce al ricalcolo successivo finché la condizione dura — che è il difetto
    * opposto, e più fastidioso, perché la coach lo chiude e se lo ritrova subito.
    */
+  /**
+   * ⛔ **QUESTA PROVA NON GUARDAVA NIENTE, e per un carattere** (trovato dalla revisione
+   * avversariale, 12/9). La riga finta dichiarava `type: 'measures_missing'`, che **non è un tipo
+   * di avviso**: è la `kind` di un compito della coach (`coach-tasks/porta-delle-attivita.ts`). Il
+   * tipo di avviso è `missing_measurements`. Quindi la riga finta non collideva con niente,
+   * l'avviso veniva creato davvero, e `not.toContain('measures_missing')` era vero **per
+   * qualunque implementazione** — compresa quella che ricrea sempre l'avviso, cioè esattamente il
+   * difetto che questa prova dichiara di sorvegliare.
+   */
   it('il ricalcolo NON ricrea un avviso già gestito', async () => {
     const prisma = basePrisma();
-    prisma.alert.findMany.mockResolvedValue([{ id: 'a1', type: 'measures_missing' }]);
+    prisma.alert.findMany.mockResolvedValue([{ id: 'a1', type: 'missing_measurements', status: 'handled', handledAt: new Date() }]);
     const svc = makeService(prisma, { blocking: true, cycleDate: dayIso(0) });
     await svc.recompute('cli-1');
 
     const where = prisma.alert.findMany.mock.calls[0][0] as { where: { status: { in: string[] } } };
     expect(where.where.status.in).toContain('handled');
     // Esiste già (in qualunque stato non chiuso): non se ne crea un altro dello stesso tipo.
-    expect(createdTypes(prisma)).not.toContain('measures_missing');
+    expect(createdTypes(prisma)).not.toContain('missing_measurements');
+    // ⚠️ E la controprova, che prima mancava: senza la riga già in coda, l'avviso NASCE.
+    const pulito = basePrisma();
+    await makeService(pulito, { blocking: true, cycleDate: dayIso(0) }).recompute('cli-1');
+    expect(createdTypes(pulito)).toContain('missing_measurements');
   });
 });

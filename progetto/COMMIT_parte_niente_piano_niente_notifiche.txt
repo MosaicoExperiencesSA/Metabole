@@ -1,0 +1,198 @@
+Niente piano, niente notifiche — ne alla cliente ne alla coach — e il richiamo ogni due mesi
+
+LA DECISIONE (Simone, 12/9)
+«Se un cliente non ha piani attivi va staccato tutto», e «anche alla coach:
+quando arriva una notifica di marketing ogni 2 mesi basta». Il Monitoraggio e il
+Mantenimento CONTANO come piano: sono abbonamenti attivi e pagati, e chi li ha
+continua a ricevere tutto.
+
+DOV'ERA — 1. IL GIRO NOTTURNO
+`generateDailyForClient` calcolava `hasActivePlan` e poi lo guardava in DUE
+punti su dieci: il suggerimento della giornata 20-4 e il messaggio quotidiano
+del motore. Tutto il resto partiva lo stesso, e non smetteva mai:
+  · `checkin_reminder`      -> alla cliente, ogni giorno, per sempre
+  · `measurement_reminder`  -> alla cliente, ogni giorno, per sempre
+  · `no_checkin_coach_alert`-> alla COACH, ogni giorno, col numero dei giorni
+                               che cresceva all'infinito
+  · `stall_coach_alert`     -> alla COACH: rilegge l'ULTIMA decisione del
+                               motore, ferma da quando il piano e finito
+Era l'ultimo giro rimasto senza il cancello che hanno gia tutti gli altri: il
+motore e la coda della nutrizionista (`filtroClienteConPianoAttivo`),
+l'aderenza, i solleciti misure (`measuresNudgeTick`) e le push del digiuno —
+queste ultime corrette il 21/8 per lo stesso identico difetto, su questo stesso
+file.
+
+DOV'ERA — 2. L'APP MURATA, che e la parte peggiore
+`measurementGate` non guardava il piano (usciva presto solo per il
+Monitoraggio). Su un'ex cliente resta l'ultimo `menuDay` di mesi fa e nessuna
+misura dentro quel ciclo, quindi `cycleNeedsMeasure` rispondeva `true` PER
+SEMPRE: `required`, `blocking`, e passate le ore di grazia il livello diventava
+`locked`. Chi riapriva l'app dopo la fine del percorso ci trovava il muro con
+scritto «Contatta la tua coach per sbloccare la app» — per una pesata che
+serviva a un menu che non sarebbe mai arrivato.
+
+COME FUNZIONA ADESSO
+1. Cancello in `generateDailyForClient`, subito dopo la lettura degli
+   abbonamenti: senza un piano si esce, e non parte niente. Vale anche per gli
+   avvisi alla coach.
+2. Uscita anticipata in `measurementGate`: `level: 'none'`, nessun muro.
+3. `wb_ricorrente`: una email ogni 60 giorni, al massimo 6 volte, a chi ha il
+   percorso a pagamento finito e non e tornata. Copia alla coach, come tutte le
+   email del ciclo di vita — che e la cadenza chiesta per lei.
+
+LE TRE COSE CHE TENGONO IN PIEDI IL CANCELLO
+· IL CANCELLO E `STATI_CON_UN_PIANO` LETTO DA `attivoInCorso`, non
+  `filtroClienteConPianoAttivo`. Il secondo esclude apposta il Monitoraggio,
+  perche risponde a un'altra domanda («il motore ha un piano alimentare da
+  correggere?»). Usarlo qui staccherebbe chi paga 19 euro al mese.
+· SI GUARDA ANCHE `endDate`. `attivoInCorso` puo tornare una riga con la fine
+  gia passata — e il suo ultimo ramo, che serve a non far sparire il piano dalla
+  scheda di chi la sta guardando. Un cancello scritto `if (!attivoInCorso(...))`
+  sarebbe verde proprio per chi deve fermare.
+· `queued` PASSA, ed e voluto (voce 258): nella finestra di anteprima le misure
+  di partenza si chiedono gia, prima che il piano cominci.
+
+L'UNICA ECCEZIONE, ed e una sola
+Il promemoria della VISITA di domani passa il cancello, per la cliente e per la
+nutrizionista. Una visita si compra a parte — senza credito
+`prenotazioni.service` non la fa prenotare — quindi e un appuntamento gia pagato
+e gia in agenda: zittirlo lo farebbe saltare a due persone, e la nutrizionista
+non c'entra niente col fatto che quella cliente abbia o no un piano. Il
+promemoria sta in una funzione sola (`promemoriaVisita`) con due chiamanti: una
+regola scritta due volte diverge, ed e gia successo qui con la rotta della
+notifica e la campanella.
+
+IL COSTO DELLA NOTTE, gia che c'eravamo
+Il cancello sta PRIMA delle sei letture in parallelo: su un'ex cliente la notte
+costa due letture invece di quindici. Il database di produzione sta all'80% di
+CPU h24, e interrogare check-in, misure, eventi, decisioni e visite di gente che
+non ricevera niente e lavoro che si pagava tutte le notti. C'e una prova che
+tiene il cancello dov'e.
+
+IL RICHIAMO OGNI DUE MESI — quello che NON fa
+· NASCE SPENTO, come `trial_g6_offer`. Si accende da Marketing -> Automazione.
+  Il primo giro dopo l'accensione scrive a TUTTE le ex clienti il cui piano e
+  scaduto da 60, 120, ... 360 giorni: prima di accenderlo vale la pena sapere
+  quante sono.
+· SI GUARDA IL GIORNO ESATTO, non «almeno N giorni». E il motivo per cui c'e un
+  tetto invece di un ciclo aperto: con una finestra «almeno», ogni giro dovrebbe
+  leggere tutti gli abbonamenti scaduti da sempre per scartarli quasi tutti.
+  ⛔ La conseguenza va detta: se lo scan non gira nel giorno giusto — deploy
+  lungo, master spento, interruttore acceso a meta giornata — quel richiamo si
+  perde e il prossimo arriva due mesi dopo. Allargare la finestra ne farebbe
+  partire due vicini a chi era gia stato scritto.
+· SOLO PIANI A PAGAMENTO e solo l'ULTIMO piano della cliente: chi ne ha avuti
+  tre riceverebbe altrimenti tre richiami in tre giorni diversi, uno per ogni
+  scadenza vecchia.
+· IL NUMERO DEL GIRO STA NELLA CHIAVE DI DEDUPLICA. `lifecycle_email` e unica su
+  (utente, chiave): con una chiave costante il secondo richiamo risulterebbe gia
+  inviato e ne partirebbe UNO SOLO IN TUTTO — un difetto invisibile per due
+  mesi, che poi sembra un problema di consegna della posta. Il giudizio sta nel
+  modulo puro `marketing/richiamo-ricorrente.ts`, provato a parte.
+
+LA REVISIONE AVVERSARIALE, PRIMA DI CONSEGNARE — sei difetti VERI nel lavoro
+appena scritto, piu cinque preesistenti messi in elenco lavori.
+
+CORRETTI (erano nel lavoro di oggi):
+· ⛔ IL RICHIAMO NON SAREBBE PARTITO QUASI MAI, ed era il piu grave: filtrava
+  `status: 'expired'`, e in tutto il backend quello stato lo scrivono tre posti,
+  nessuno dei quali copre il caso normale (le prove gratuite, il webhook Stripe
+  di abbonamento cancellato, e un'altra tabella). Un piano a pagamento arrivato
+  alla fine resta `active` con `endDate` passata. Si sarebbe staccato tutto e
+  non sarebbe arrivato niente in cambio: meta della decisione applicata.
+· ⛔ IL MONITORAGGIO OMAGGIO VENIVA STACCATO MENTRE RICEVE I MENU.
+  `monitoring.service.start()` lo concede SOLO a chi non ha nessuna riga di
+  abbonamento: e un `MonitoringPeriod` e basta, quindi guardando i soli
+  abbonamenti quella persona risultava «senza piano». E intanto
+  `monitoring.service` le eroga i menu di rientro se il peso risale — cioe si
+  sarebbe ricreato lo stato che l'11/8 e stato chiuso apposta: i menu arrivano e
+  nessuno chiede il peso. La domanda adesso e una sola e sta in
+  `common/lo-stiamo-seguendo.ts`, e comprende il monitoraggio omaggio.
+· ⛔ CHIUDEVO ANCHE GLI AVVISI INOLTRATI AL NUTRIZIONISTA. `sync([])` risolve
+  tutto quello che non e chiuso, e `STATI_NON_CHIUSI` comprende `escalated`: un
+  avviso inoltrato sarebbe sparito dalla coda dei manager mentre la riga
+  `Escalation` resta aperta nel database. La fine di un percorso non e una
+  risposta a una domanda clinica. Adesso si chiudono solo `open` e `handled`.
+· ⚠️ IL FILTRO «E L'ULTIMO PIANO» ERA TROPPO LARGO: una prova gratuita finita
+  dopo, o una riga `cancelled` da rimborso, sopprimeva il richiamo PER SEMPRE
+  (quelle righe non sono mai il punto di partenza, quindi nessun giro l'avrebbe
+  mai mandato). E due piani che finiscono lo stesso giorno mandavano DUE email
+  identiche piu due copie alla coach: il pareggio adesso lo rompe l'id.
+· ⚠️ L'EMAIL SI FIRMAVA «la tua coach, la tua coach». A due mesi dalla fine il
+  caso normale e non avere piu una coach assegnata: il ripiego `'la tua coach'`
+  piu la firma «{{coach}}, la tua coach» del modello davano quello. E il nome
+  vuoto dava «Ciao ,». Adesso il ripiego e «il team Metabole» e la virgola sta
+  dentro `nomeDiSaluto`.
+· ⚠️ I DUE PARAMETRI SI DIGITANO A MANO: `Infinity` passava il controllo `< 1` e
+  faceva LANCIARE `Array.from` — non un richiamo sbagliato, lo scan del ciclo di
+  vita che muore in mezzo portandosi dietro gli altri inneschi. E una cadenza
+  frazionaria dava finestre da mezzogiorno a mezzogiorno. Adesso si accettano
+  solo interi, con un tetto massimo di 24.
+
+MESSI IN ELENCO LAVORI (preesistenti, NON toccati):
+· `winback-t3-t7-non-parte-mai` — `wb_t3` e `wb_t7` hanno lo stesso difetto del
+  primo punto. Non corretti apposta: sono accesi di default, e correggerli li
+  farebbe partire di colpo su tutto lo storico. Decisione di Simone.
+· `muro-misure-sul-rientro` — chi ricompra con partenza lunedi si trova
+  «Contatta la tua coach per sbloccare la app», perche il ciclo si calcola
+  sull'ultimo menu del percorso VECCHIO. La prova lo FOTOGRAFA
+  (`expect(res.level).toBe('locked')`): il giorno che si corregge, diventa rossa.
+· `compiti-coach-mai-chiusi` — gli avvisi adesso si chiudono, i CoachTask no: non
+  esiste nessuna chiusura automatica in quel modulo.
+· `sblocco-misure-48-ore-invece-di-4` — il seed semina 48 mentre il codice ha 4 e
+  `menu.service.ts` porta scritta la decisione dell'11/8: quella decisione non e
+  mai entrata in vigore. Si corregge dalla pagina Parametri, non dal seed.
+· `avviso-riaperto-a-mano-su-ex-cliente` — conseguenza della decisione di oggi:
+  un avviso riaperto a mano su un'ex cliente si richiude al primo refresh.
+
+E UNA PROVA VECCHIA CHE NON GUARDAVA NIENTE, per un carattere:
+`alerts.service.spec.ts` → «il ricalcolo NON ricrea un avviso gia gestito» usava
+`type: 'measures_missing'`, che non e un tipo di avviso ma la `kind` di un
+compito della coach. Il tipo e `missing_measurements`. La riga finta non
+collideva con niente, l'avviso veniva creato davvero, e l'asserzione era vera per
+QUALUNQUE implementazione — compresa quella che ricrea sempre l'avviso, cioe il
+difetto che la prova dichiara di sorvegliare. Corretta, con la controprova.
+
+LE PROVE — e la verifica che mordono
+Trentacinque prove nuove in sei file, di cui due file nuovi
+(`common/lo-stiamo-seguendo.spec.ts` e `marketing/richiamo-ricorrente-scan.spec.ts`).
+Ogni gruppo e stato provato TOGLIENDO il pezzo di prodotto che sorveglia:
+  · tolto il cancello, in ognuno dei tre organi -> rosse
+  · cancello invertito, in ognuno dei tre -> rosse
+  · `attivoInCorso(...) !== null` al posto di `loStiamoSeguendo` -> rosse
+  · cancello spostato DOPO le letture -> rossa la prova sul costo (in tutti e tre)
+  · `>=` che diventa `>` sulla fine del piano -> rossa «il piano finisce OGGI»
+  · `aGiorno(oggi)` che diventa `oggi` -> rossa «la stessa risposta alle 00:30 e
+    alle 23:30»
+  · `sync([])` al posto della chiusura selettiva -> rossa «l'avviso inoltrato
+    resta aperto»
+  · query senza `queued`, o con un filtro sul piano -> rosse (i finti FILTRANO
+    come il database vero: senza, tutte e due sopravvivevano)
+  · `giriDelRichiamo(tetto, cadenza)` scambiati, giro fisso a 1, chiave senza il
+    numero del giro, tetto forzato a zero -> rosse (prima sopravvivevano TUTTE:
+    il modulo puro era provato, il fatto che qualcuno lo usasse no)
+⚠️ Il mutation testing e stato fatto due volte: il primo giro ha trovato tredici
+mutazioni sopravvissute, e le prove qui sopra sono la risposta a quelle.
+⚠️ E DUE PROVE VECCHIE SI SONO FATTE ROSSE PER LA RAGIONE GIUSTA: in
+`menu-measurement-gate.spec.ts` cinque casi dichiaravano «nessun abbonamento»
+usandolo come scorciatoia per «non e Monitoraggio». Da oggi quella scorciatoia
+rende falsa la loro premessa: adesso dichiarano il piano alimentare attivo che
+hanno sempre inteso avere (`PIANO_ALIMENTARE_ATTIVO`).
+⚠️ Il finto Prisma della prova sul Monitoraggio FILTRA COME IL DATABASE VERO:
+senza, sarebbe verde anche passando a `filtroClienteConPianoAttivo`.
+
+LO STATO DELLE PROVE
+Backend: nessuna prova rossa. ⚠️ Sul Mac ~68 suite non COMPILANO, e non c'entra
+questo lavoro: il client Prisma generato li e piu vecchio dello schema, e gli
+errori stanno tutti in otto file che non ho toccato (`catalog.service.ts`,
+`panieri.service.ts`, `clients.service.ts`, `coach-tasks.service.ts`,
+`crm.service.ts`, `menu-a-mano.service.ts`, `profile.service.ts`,
+`lavori.service.ts`). `npx prisma generate` sul Mac non riesce: quella macchina
+non arriva a `binaries.prisma.sh`. Su Render il client si rigenera al deploy.
+Le suite toccate girano verdi anche sotto `test:notte`.
+
+NIENTE MIGRAZIONI.
+I due parametri nuovi (`winback_ricorrente_giorni`, `winback_ricorrente_max`) e
+il modello email `wb_ricorrente` entrano dal seed, che gira a ogni deploy su
+Render. Il seed dei modelli fa `upsert` e in aggiornamento tocca solo il `name`:
+le modifiche fatte dal backoffice non si perdono.

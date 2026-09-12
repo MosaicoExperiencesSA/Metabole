@@ -14,7 +14,7 @@ import { notificaUtente, staffDisabledTypes } from './notifica-utente';
 import { PushService } from './push.service';
 import { Role } from '../common/roles';
 import { STAFF_NOTIFICATION_TYPES, staffTypesForRole } from './staff-notifications';
-import { attivoInCorso } from '../commerce/abbonamento-in-corso';
+import { loStiamoSeguendo } from '../common/lo-stiamo-seguendo';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 
 interface NotifyInput {
@@ -313,6 +313,63 @@ export class NotificationsService {
     });
     if (!profile?.onboardingCompletedAt) return created;
 
+    /**
+     * ⚠️ `findMany` + `attivoInCorso`, e non un `findFirst` **senza `orderBy`** (19/8, quarta
+     * revisione). Due righe sulla stessa cliente sono legittime — una eroga, una è in coda — e
+     * senza ordinamento il database ne restituisce **una a caso**: bastava che la riga scelta fosse
+     * quella sbagliata perché il messaggio quotidiano sparisse a una cliente che ha il piano in
+     * corso. È lo stesso difetto del caso Lorena, in una schermata che si guarda ogni mattina.
+     *
+     * ⚠️ **Letto QUI, prima delle sei letture in parallelo qui sotto, e non è un dettaglio
+     * d'ordine**: senza un piano il giro esce subito, e su un'ex cliente la notte costa due
+     * letture invece di quindici. Il database di produzione sta all'80% di CPU: un giro che
+     * interroga check-in, misure, eventi, decisioni e visite di gente che non riceverà niente è
+     * lavoro che si paga tutte le notti.
+     */
+    const suoiPiani = (await this.prisma.subscription.findMany({
+      where: { clientId, status: { in: STATI_CON_UN_PIANO as never } },
+      select: { status: true, startDate: true, endDate: true },
+    })) as { status: string; startDate: Date | null; endDate: Date | null }[];
+    // ⚠️ La domanda «la stiamo ancora seguendo?» ha una risposta sola, in
+    // `common/lo-stiamo-seguendo.ts`, e la condividono il gate delle misure e la coda della coach.
+    // Non è `attivoInCorso(...) !== null` (quella torna una riga anche a fine passata) e non è
+    // `filtroClienteConPianoAttivo` (quello esclude il Monitoraggio). Comprende il monitoraggio
+    // OMAGGIO, che non è un abbonamento ma riceve i menu di rientro.
+    const hasActivePlan = await loStiamoSeguendo(this.prisma, clientId, suoiPiani);
+
+    /**
+     * ⛔ **NIENTE PIANO, NIENTE NOTIFICHE** (Simone, 12/9: «se un cliente non ha piani attivi va
+     * staccato tutto», e vale anche per gli avvisi alla coach).
+     *
+     * Fin qui il piano lo guardavano **due** messaggi su dieci — il suggerimento 20-4 e il
+     * quotidiano del motore — e tutto il resto partiva lo stesso, **per sempre**: alla cliente il
+     * promemoria check-in e quello delle misure ogni giorno; alla coach `no_checkin_coach_alert`
+     * ogni giorno, col numero dei giorni che cresceva all'infinito, e `stall_coach_alert` che
+     * rilegge l'**ultima** decisione del motore, ferma da quando il piano è finito.
+     *
+     * Il giro notturno era rimasto l'ultimo senza il cancello che hanno già tutti gli altri: il
+     * motore e la coda della nutrizionista (`filtroClienteConPianoAttivo`), l'aderenza, i
+     * solleciti misure (`measuresNudgeTick`) e le push del digiuno — queste ultime corrette il
+     * 21/8 per esattamente lo stesso difetto, su questo stesso file.
+     *
+     * ⚠️ **Monitoraggio e Mantenimento contano come piano** (Simone, 12/9): sono abbonamenti
+     * attivi e pagati, e chi li ha continua a ricevere tutto. Per questo il cancello è
+     * `STATI_CON_UN_PIANO` letto da `attivoInCorso`, e **non** `filtroClienteConPianoAttivo`, che
+     * il monitoraggio lo esclude apposta perché lì la domanda è un'altra («il motore ha un piano
+     * alimentare da correggere?»).
+     *
+     * ⚠️ **L'unica cosa che sopravvive è il promemoria della visita**, alla cliente e alla
+     * nutrizionista. Una visita si compra a parte — senza credito `prenotazioni.service` non la
+     * fa prenotare — quindi è un appuntamento già pagato e già in agenda: zittirlo farebbe
+     * saltare a due persone una cosa che hanno preso, e la nutrizionista non c'entra niente col
+     * fatto che quella cliente abbia o no un piano. Non è un richiamo, è il promemoria di una
+     * cosa che esiste già.
+     */
+    if (!hasActivePlan) {
+      await this.promemoriaVisita(clientId, profile, created);
+      return created;
+    }
+
     const [checkinToday, lastMeasurements, activePause, upcomingEvents, todayDecision, visitsTomorrow] =
       await Promise.all([
         this.prisma.dailyCheckin.findUnique({
@@ -345,19 +402,6 @@ export class NotificationsService {
     // "piano confermato, continua col ritmo" e il link la riporta a un piano finito (bug).
     // ⚠️ Anche in coda (19/8, voce 258): nella finestra di anteprima i menu si compongono già, e un
     // messaggio quotidiano che tace mentre il menu c'è è una schermata che si contraddice da sola.
-    /**
-     * ⚠️ `findMany` + `attivoInCorso`, e non un `findFirst` **senza `orderBy`** (19/8, quarta
-     * revisione). Due righe sulla stessa cliente sono legittime — una eroga, una è in coda — e
-     * senza ordinamento il database ne restituisce **una a caso**: bastava che la riga scelta fosse
-     * quella sbagliata perché il messaggio quotidiano sparisse a una cliente che ha il piano in
-     * corso. È lo stesso difetto del caso Lorena, in una schermata che si guarda ogni mattina.
-     */
-    const suoiPiani = (await this.prisma.subscription.findMany({
-      where: { clientId, status: { in: STATI_CON_UN_PIANO as never } },
-      select: { status: true, startDate: true, endDate: true },
-    })) as { status: string; startDate: Date | null; endDate: Date | null }[];
-    const activeSub = attivoInCorso(suoiPiani);
-    const hasActivePlan = !!activeSub && (!activeSub.endDate || activeSub.endDate.getTime() >= today.getTime());
 
     // 0-bis. DIGIUNO INTERMITTENTE — suggerimento settimanale della giornata 20-4 (voce #7 del 5/8).
     // Una volta a settimana si propone di stringere la finestra a un solo pasto. È un
@@ -499,29 +543,9 @@ export class NotificationsService {
     }
 
     // 2d. Visita domani: promemoria a cliente e nutrizionista.
-    for (const visit of visitsTomorrow as { id: string; datetime: Date; nutritionistId: string }[]) {
-      const when = formatWhen(visit.datetime);
-      if (await this.notifyOncePerDay({
-        userId: clientId,
-        type: 'visit_reminder',
-        messageKey: 'visit_reminder',
-        params: { when },
-        payload: { visitId: visit.id },
-      })) created.push('visit_reminder');
-      const staff = await this.prisma.staff.findUnique({
-        where: { id: visit.nutritionistId },
-        select: { userId: true },
-      });
-      if (staff?.userId) {
-        if (await this.notifyOncePerDay({
-          userId: staff.userId,
-          type: 'visit_reminder_staff',
-          messageKey: 'visit_reminder_staff',
-          params: { when, clientName: profile.name ?? profile.user.email },
-          payload: { visitId: visit.id, clientId },
-        })) created.push('visit_reminder_staff');
-      }
-    }
+    // ⚠️ Stessa funzione che gira nel ramo «senza piano» qui sopra: il promemoria della visita è
+    // l'unica cosa che sopravvive al cancello, e una regola scritta due volte diverge.
+    await this.promemoriaVisita(clientId, profile, created, visitsTomorrow);
 
     // 3. Countdown pre-evento (spec: anticipare, non punire).
     for (const event of upcomingEvents as { label: string | null; type: string; startDate: Date }[]) {
@@ -628,6 +652,58 @@ export class NotificationsService {
     }
 
     return created;
+  }
+
+  /**
+   * ⛔ **IL PROMEMORIA DELLA VISITA DI DOMANI — l'unica cosa che passa il cancello del piano.**
+   *
+   * Sta in una funzione sola perché ha **due chiamanti**: il giro normale (punto 2d) e il ramo
+   * «senza piano», dove tutto il resto si ferma. Scritta due volte, la stessa regola diverge —
+   * ed è già successo in questo progetto, con la rotta della notifica e la campanella.
+   *
+   * ⚠️ Le visite le carica **da sé** quando il chiamante non gliele passa: nel ramo senza piano le
+   * sei letture in parallelo non sono mai partite, e caricarle tutte per usarne una sarebbe
+   * esattamente il costo che quel ramo esiste per non pagare.
+   */
+  private async promemoriaVisita(
+    clientId: string,
+    profile: { name: string | null; user: { email: string } },
+    created: string[],
+    visite?: unknown[],
+  ): Promise<void> {
+    const domani = new Date(toDateOnly().getTime() + 86_400_000);
+    const elenco = (visite ??
+      (await this.prisma.visit.findMany({
+        where: {
+          clientId,
+          status: 'scheduled',
+          datetime: { gte: domani, lt: new Date(domani.getTime() + 86_400_000) },
+        },
+      }))) as { id: string; datetime: Date; nutritionistId: string }[];
+
+    for (const visit of elenco) {
+      const when = formatWhen(visit.datetime);
+      if (await this.notifyOncePerDay({
+        userId: clientId,
+        type: 'visit_reminder',
+        messageKey: 'visit_reminder',
+        params: { when },
+        payload: { visitId: visit.id },
+      })) created.push('visit_reminder');
+      const staff = await this.prisma.staff.findUnique({
+        where: { id: visit.nutritionistId },
+        select: { userId: true },
+      });
+      if (staff?.userId) {
+        if (await this.notifyOncePerDay({
+          userId: staff.userId,
+          type: 'visit_reminder_staff',
+          messageKey: 'visit_reminder_staff',
+          params: { when, clientName: profile.name ?? profile.user.email },
+          payload: { visitId: visit.id, clientId },
+        })) created.push('visit_reminder_staff');
+      }
+    }
   }
 
   /** Batch giornaliero per tutte le clienti attive (chiamato dal cron). */

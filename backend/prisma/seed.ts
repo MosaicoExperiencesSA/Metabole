@@ -693,6 +693,11 @@ const CONFIG_PARAMS: SeedParam[] = [
   { key: 'measures_nudge_start_hour', value: '8', type: 'number', description: 'Ora di inizio della finestra in cui si sollecitano le misure (niente solleciti di notte).' },
   { key: 'measures_nudge_end_hour', value: '22', type: 'number', description: 'Ora di fine della finestra dei solleciti misure.' },
   { key: 'measures_nudge_hours', value: '2', type: 'number', description: 'Ogni quante ore ripetere il sollecito delle misure.' },
+  // Il richiamo a chi non ha più un piano: da quando il giro notturno si spegne con il piano, è
+  // l'unica cosa che continua ad arrivare (e in copia alla coach). L'innesco `wb_ricorrente` nasce
+  // SPENTO: questi due dicono solo con che passo andrebbe, se acceso.
+  { key: 'winback_ricorrente_giorni', value: '60', type: 'number', description: 'Ogni quanti giorni riscrivere a chi ha il percorso a pagamento finito e non è tornata.' },
+  { key: 'winback_ricorrente_max', value: '6', type: 'number', description: 'Quanti richiami in tutto prima di smettere (60 giorni per 6 volte = un anno). Zero spegne il richiamo.' },
   { key: 'pause_watch_ask_days', value: '5', type: 'number', description: 'Ogni quanti giorni chiedere una pesata durante una pausa vacanza.' },
   { key: 'pause_watch_regain_kg', value: '2', type: 'number', description: 'Aumento di peso in pausa oltre il quale si apre un\'attività alla coach.' },
   { key: 'maintenance_regain_kg', value: '3', type: 'number', description: 'Kg ripresi in mantenimento oltre i quali scatta l\'attività "peso che risale".' },

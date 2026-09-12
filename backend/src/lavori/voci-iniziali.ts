@@ -7156,4 +7156,146 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'nutrizioniste \u2014 una firma senza chi, in silenzio.',
   },
 
+  {
+    chiave: 'niente-piano-niente-notifiche',
+    categoria: SIMONE,
+    ordine: 1,
+    fatta: true,
+    nata: '2026-09-12T09:00',
+    titolo: '\u2705 Chi non ha pi\u00f9 un piano non riceve pi\u00f9 niente (n\u00e9 lui n\u00e9 la coach)',
+    dettaglio:
+      'Simone, 12/9: *\u00abse un cliente non ha piani attivi va staccato tutto\u00bb*, e *\u00abanche alla coach, '
+      + 'quando arriva una notifica di marketing ogni 2 mesi basta\u00bb*.\n\n'
+      + '\u26d4 **Il difetto**: il giro notturno calcolava `hasActivePlan` e lo guardava in **due** punti su '
+      + 'dieci \u2014 il suggerimento 20-4 e il messaggio del motore. Tutto il resto partiva lo stesso e non '
+      + 'smetteva mai: alla cliente il promemoria check-in e quello delle misure ogni giorno, alla coach '
+      + '`no_checkin_coach_alert` ogni giorno col numero dei giorni che cresceva all\'infinito. Era l\'ultimo '
+      + 'giro rimasto senza il cancello che hanno gi\u00e0 il motore, la coda della nutrizionista, l\'aderenza, '
+      + 'i solleciti misure e le push del digiuno.\n\n'
+      + '\u26d4 **E l\'app restava murata**: `measurementGate` non guardava il piano, quindi su un\'ex cliente '
+      + '`cycleNeedsMeasure` rispondeva s\u00ec per sempre e dopo le ore di grazia il livello diventava '
+      + '`locked` \u2014 chi riapriva l\'app trovava \u00abContatta la tua coach per sbloccare la app\u00bb, per una '
+      + 'pesata che serviva a un menu che non sarebbe mai arrivato.\n\n'
+      + '\u2705 **FATTO**: cancello in `generateDailyForClient` (prima delle sei letture in parallelo: su un\'ex '
+      + 'cliente la notte costa due letture invece di quindici) e uscita anticipata in `measurementGate`. '
+      + '\u26a0\ufe0f **Monitoraggio e Mantenimento contano come piano** (decisione di Simone) e continuano a '
+      + 'ricevere tutto. \u26a0\ufe0f **L\'unica cosa che passa il cancello \u00e8 il promemoria della visita di '
+      + 'domani**, alla cliente e alla nutrizionista: una visita si compra a parte, \u00e8 gi\u00e0 pagata e gi\u00e0 '
+      + 'in agenda.',
+  },
+
+  {
+    chiave: 'richiamo-ricorrente-da-accendere',
+    categoria: SIMONE,
+    ordine: 1,
+    blocca: false,
+    nata: '2026-09-12T09:00',
+    titolo: 'Il richiamo ogni 2 mesi \u00e8 scritto ma \u00e8 SPENTO: va acceso da Simone',
+    dettaglio:
+      'L\'altra met\u00e0 della decisione del 12/9. Da quando il giro notturno tace, l\'unica cosa che '
+      + 'continua ad arrivare a chi non ha pi\u00f9 un piano \u00e8 l\'innesco `wb_ricorrente`: una email ogni '
+      + '**60 giorni**, al massimo **6 volte** (un anno), con **copia alla coach** come tutte le email '
+      + 'del ciclo di vita.\n\n'
+      + '\u26a0\ufe0f **Nasce spento**, come `trial_g6_offer`: si accende da **Marketing \u2192 Automazione**. Il '
+      + 'primo giro dopo l\'accensione scrive a **tutte** le ex clienti il cui piano \u00e8 scaduto da 60, '
+      + '120, \u2026 360 giorni \u2014 prima di accenderlo vale la pena sapere quante sono.\n'
+      + '\u26a0\ufe0f I due numeri sono parametri (**Parametri \u2192 Marketing**): `winback_ricorrente_giorni` e '
+      + '`winback_ricorrente_max`. Zero, in uno dei due, spegne il richiamo.\n'
+      + '\u26d4 **Si guarda il giorno esatto**, non \u00abalmeno N giorni\u00bb: se lo scan non gira nel giorno '
+      + 'giusto \u2014 deploy lungo, master spento, interruttore acceso a met\u00e0 giornata \u2014 quel richiamo si '
+      + 'perde e il prossimo arriva due mesi dopo. Allargare la finestra ne farebbe partire due vicini a '
+      + 'chi era gi\u00e0 stato scritto.',
+  },
+
+  {
+    chiave: 'muro-misure-sul-rientro',
+    categoria: CODICE,
+    ordine: 2,
+    nata: '2026-09-12T12:00',
+    titolo: 'Chi ricompra si trova il muro delle misure per il ciclo del percorso VECCHIO',
+    dettaglio:
+      'Trovato dalla revisione avversariale del 12/9, difetto **preesistente**.\n\n'
+      + 'La cliente finisce il percorso, dopo qualche giorno **ricompra** con partenza luned\u00ec (riga '
+      + '`queued`). `measurementGate` la fa passare \u2014 giusto, nella finestra di anteprima le misure '
+      + 'di partenza si chiedono \u2014 ma poi calcola il ciclo sull\'ultimo `menuDay`, che \u00e8 quello del '
+      + 'percorso **precedente**: scaduto da giorni, quindi oltre le ore di grazia. Livello `locked`, '
+      + 'cio\u00e8 **\u00abContatta la tua coach per sbloccare la app\u00bb a una persona che ha appena '
+      + 'ripagato**, per una pesata che serve a un ciclo chiuso.\n\n'
+      + '\u26a0\ufe0f La prova `menu-measurement-gate.spec.ts` \u2192 \u00abil piano comincia luned\u00ec\u00bb **fotografa** '
+      + 'questo comportamento (`expect(res.level).toBe(\'locked\')`): il giorno che si corregge, quella '
+      + 'riga diventa rossa e lo si sa.',
+  },
+
+  {
+    chiave: 'winback-t3-t7-non-parte-mai',
+    categoria: SIMONE,
+    ordine: 2,
+    nata: '2026-09-12T12:00',
+    titolo: 'I win-back T+3 e T+7 non partono quasi mai: cercano uno stato che i piani a pagamento non raggiungono',
+    dettaglio:
+      'Trovato dalla revisione avversariale del 12/9 mentre si scriveva il richiamo ricorrente.\n\n'
+      + '`wb_t3` e `wb_t7` filtrano `status: \'expired\'`. In tutto il backend quello stato lo scrivono '
+      + '**tre** posti e nessuno copre il caso normale: `expireTrialsAndPurge` (solo le prove '
+      + 'gratuite), il webhook Stripe di abbonamento cancellato, e `monitoring.service` (altra '
+      + 'tabella). **Nessun cron marca `expired` un piano a pagamento arrivato alla fine**: la riga '
+      + 'resta `active` con `endDate` passata \u2014 lo sa gi\u00e0 `crm.chiudiPercorsiConclusi`, che infatti '
+      + 'guarda `endDate` e non lo stato.\n\n'
+      + '\u26a0\ufe0f Nel richiamo nuovo (`wb_ricorrente`) il difetto \u00e8 stato evitato. Qui **non \u00e8 stato '
+      + 'toccato apposta**: `wb_t3` e `wb_t7` sono accesi di default, e correggerli li farebbe '
+      + 'partire di colpo su tutto lo storico di chi ha finito un percorso e non \u00e8 tornato. \u00c8 una '
+      + 'decisione di Simone, non una correzione di rimbalzo.',
+  },
+
+  {
+    chiave: 'compiti-coach-mai-chiusi',
+    categoria: CODICE,
+    ordine: 3,
+    nata: '2026-09-12T12:00',
+    titolo: 'I compiti della coach non si chiudono mai da soli (nemmeno a percorso finito)',
+    dettaglio:
+      'Trovato dalla revisione avversariale del 12/9.\n\n'
+      + 'Dal 12/9 gli **avvisi** (`Alert`) di chi non ha pi\u00f9 un piano si chiudono da soli. I **compiti** '
+      + '(`CoachTask`) no: nel modulo non esiste nessuna chiusura automatica per condizione svanita. '
+      + 'Un `measures_missing` \u2014 \u00abMisure non inserite: il menu \u00e8 fermo\u00bb \u2014 aperto il giorno prima '
+      + 'della scadenza resta nella lista della coach **per sempre**, su una cliente che non ha pi\u00f9 '
+      + 'un piano e per un menu che non arriver\u00e0.\n\n'
+      + '\u26a0\ufe0f `measuresNudgeTick` gi\u00e0 non ne crea di nuovi (filtra sui piani): il buco \u00e8 solo su '
+      + 'quelli **gi\u00e0 aperti**. La coach vede sparire una coda e non l\'altra.',
+  },
+
+  {
+    chiave: 'sblocco-misure-48-ore-invece-di-4',
+    categoria: SIMONE,
+    ordine: 2,
+    nata: '2026-09-12T12:00',
+    titolo: 'In produzione lo sblocco misure dura 48 ore, non 4 come deciso l\'11/8',
+    dettaglio:
+      'Trovato di rimbalzo il 12/9, aprendo `prisma/seed.ts` per un\'altra ragione.\n\n'
+      + 'Il codice ha default **4** e `menu.service.ts` porta scritta la decisione: *\u00abse diamo il '
+      + 'riapri devi dare un timer di 4 ore\u00bb* (Simone, 11/8), con il ragionamento su perch\u00e9 '
+      + 'quarantotto erano il peggio dei due mondi. Ma `seed.ts` semina '
+      + '`measures_unlock_hours` a **\'48\'**, e il valore a database vince sul default: la decisione '
+      + 'dell\'11/8 **non \u00e8 mai entrata in vigore**.\n\n'
+      + '\u26a0\ufe0f Il seed in aggiornamento non tocca `value` (solo la descrizione), quindi cambiare la riga '
+      + 'nel seed **non** sistema la produzione: il valore va corretto **dalla pagina Parametri**. '
+      + 'Non toccato il 12/9 perch\u00e9 \u00e8 fuori dalla consegna e perch\u00e9 la scelta \u00e8 sua.',
+  },
+
+  {
+    chiave: 'avviso-riaperto-a-mano-su-ex-cliente',
+    categoria: SIMONE,
+    ordine: 3,
+    nata: '2026-09-12T12:00',
+    titolo: 'Su un\'ex cliente la coach non pu\u00f2 pi\u00f9 tenere aperto un avviso a mano',
+    dettaglio:
+      'Conseguenza diretta della decisione del 12/9, da sapere prima che la segnali una coach.\n\n'
+      + '`listForCoach` ricalcola in modo pigro tutte le clienti del perimetro a ogni caricamento '
+      + 'della pagina. Se una coach riapre a mano un avviso su una cliente il cui percorso \u00e8 finito '
+      + '\u2014 per ricordarsi di richiamarla \u2014 al primo aggiornamento della pagina si richiude. Dal suo '
+      + 'punto di vista \u00e8 un pulsante che non salva, cio\u00e8 il difetto dell\'11/8 al contrario.\n\n'
+      + '\u26a0\ufe0f Non \u00e8 stato corretto perch\u00e9 la risposta dipende da cosa vuole Simone: o gli avvisi '
+      + 'riaperti a mano si rispettano anche senza piano, oppure il posto giusto per \u00abrichiamala\u00bb '
+      + 'non \u00e8 la coda degli avvisi ma il CRM, dove la scheda entra in \u00abPercorso concluso\u00bb.',
+  },
+
 ];
