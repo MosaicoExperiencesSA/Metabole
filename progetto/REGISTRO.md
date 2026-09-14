@@ -59,6 +59,13 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   stessa funzione del codice (`oggiPiu`), che è la regola già scritta nel progetto: una prova che
   dipende dall'ora in cui gira non dice se il codice è giusto, dice che ore sono.
 
+- `[Sviluppo]` ⚠️ **`vitest` non era installato sul Mac**, e il backoffice risultava rosso a
+  chiunque lo compilasse: sta in `package.json` (`^2.1.9`) e nel lock, ma `backoffice/node_modules`
+  era fermo al **13 agosto**, cioè a prima che ci entrasse. `tsc -b` include i `.spec.ts`, ogni
+  spec importa `vitest`, e uscivano **46 errori** su tutte e trentasette le prove. Chiuso con
+  `npm install`. ⚠️ Misurato dopo: backend **486 suite / 8366 prove**, backoffice **37 file / 355
+  prove**, `tsc` pulito da tutte e due le parti. **Nessuna migrazione.**
+
 ## 2026-09-12
 
 - `[Sviluppo]` ⛔ **Niente piano, niente notifiche — né alla cliente né alla coach.** Decisione di

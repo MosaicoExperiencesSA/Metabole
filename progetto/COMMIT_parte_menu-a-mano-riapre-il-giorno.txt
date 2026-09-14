@@ -63,9 +63,14 @@ pomeriggio (`richiamo-ricorrente-scan.spec.ts`, dalla consegna del 12/9):
 a N+1 di pomeriggio. Adesso l'attesa si calcola con la stessa funzione del
 codice (`oggiPiu`).
 
-Misurato: `src/menu` verde (2015 prove, 88 suite) e `tsc -p tsconfig.build.json`
-del backend senza errori. Il backoffice non si compila dalla macchina Linux
-montata (rollup e vitest sono installati per macOS): `tsc -b` e `vitest run`
-vanno lanciati sul Mac.
+Misurato: backend 486 suite / 8366 prove verdi e `tsc -p tsconfig.build.json`
+senza errori; backoffice `tsc -b` pulito e 37 file / 355 prove verdi.
+
+⚠️ E `vitest` NON ERA INSTALLATO sul Mac: sta in `package.json` (^2.1.9) e nel
+lock, ma il `node_modules` del backoffice era fermo al 13 agosto, cioe a prima
+che ci entrasse. `tsc -b` includeva i file `.spec.ts`, ogni spec importa
+`vitest`, e uscivano 46 errori su tutte e trentasette le prove — niente a che
+vedere con questa consegna, ma bastava a far sembrare rosso il backoffice a
+chiunque lo compilasse. Chiuso con `npm install`.
 
 NIENTE MIGRAZIONI.
