@@ -5,6 +5,7 @@ import { DiscountsService } from '../commerce/discounts.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { LIFECYCLE_CATALOG, LifecycleService } from './lifecycle.service';
+import { oggiPiu } from '../common/date-only';
 
 /**
  * ⛔ **IL RICHIAMO RICORRENTE, DALLO SCAN — cioè da dove parte davvero.**
@@ -104,7 +105,20 @@ describe('Richiamo ricorrente — lo scan', () => {
     return { svc, mail };
   }
 
-  const giorniIndietroDi = (r: { gte: Date }) => Math.round((Date.now() - r.gte.getTime()) / 86_400_000);
+  /**
+   * ⛔ **SI MISURA DALLA MEZZANOTTE DI ROMA, NON DA `Date.now()`** — e la differenza non era un
+   * dettaglio: questa prova era **verde di mattina e rossa di pomeriggio**.
+   *
+   * `dayRange` rende la mezzanotte di N giorni fa (`oggiPiu`). Misurando da **adesso**, la
+   * distanza è N giorni **più l'ora del giorno**: prima di mezzogiorno `Math.round` la riporta a
+   * N, dopo la porta a N+1. Una prova che dipende dall'ora in cui gira non dice più se il codice è
+   * giusto — dice che ore sono.
+   *
+   * ⚠️ L'attesa si calcola con **la stessa funzione del codice** (`oggiPiu`), mai reimplementata a
+   * mano: è la regola già scritta nel progetto, e il motivo è questo.
+   */
+  const giorniIndietroDi = (r: { gte: Date }) =>
+    Math.round((oggiPiu(0).getTime() - r.gte.getTime()) / 86_400_000);
 
   /**
    * ⛔ **IL DIFETTO PIÙ GROSSO DELLA PRIMA STESURA, e questo caso è la sua sentinella.**

@@ -131,6 +131,21 @@ function servizio(over: {
   return { s: new MenuAManoService(prisma, kcal, config, audit, push as never), upsert, prisma, audit, push, avviso };
 }
 
+/**
+ * ⛔ **IL GIORNO SI CALCOLA DA OGGI, non si scrive a mano.**
+ *
+ * Qui c'era la data 2026-09-10 scritta a mano e ripetuta quarantacinque volte, ed è **scaduto da solo**: passato il 10
+ * settembre, `avvisaGiornoRiscritto` ha smesso di avvisare («quel giorno è già passato, non ci
+ * sarebbe stato niente da fare») e **cinque prove sono diventate rosse senza che nessuno toccasse
+ * una riga di codice**. È la trappola che il progetto ha già scritto una volta: una data a mano in
+ * un test ha una scadenza, e la scadenza arriva il giorno in cui serve che il verde voglia dire
+ * qualcosa.
+ *
+ * ⚠️ **Tre giorni avanti e non uno**: deve restare futuro anche sotto `test:notte`, che sposta
+ * l'orologio, e anche a cavallo della mezzanotte di Roma.
+ */
+const GIORNO = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
 /** ⚠️ Il client manda SOLO questo: nome, kcal e verdetto li rilegge il server. */
 const GIORNATA = [
   { slot: 'breakfast', recipeId: 'c1' },
@@ -313,7 +328,7 @@ describe('⛔ quello che la ricerca mostra, il salvataggio lo accetta', () => {
 
   it('⛔ un piatto fuori dal paniere si SALVA: era il senso della richiesta del 4/9', async () => {
     const { s, upsert } = servizio();
-    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: giornataConFuori, conferma: true });
+    await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: giornataConFuori, conferma: true });
     const meals = (upsert.mock.calls[0][0].create.meals ?? []) as { recipeId: string; name: string }[];
     expect(meals.find((m) => m.recipeId === 'fuori')?.name).toBe('Pancake di avena');
   });
@@ -326,7 +341,7 @@ describe('⛔ quello che la ricerca mostra, il salvataggio lo accetta', () => {
   it('⛔ un piatto di un regime che lei non mangia NON si salva, nemmeno chiedendolo per id', async () => {
     const { s } = servizio();
     await expect(s.scrivi('c1', LUCIA, {
-      data: '2026-09-10',
+      data: GIORNO,
       pasti: [{ slot: 'breakfast', recipeId: 'c1' }, { slot: 'lunch', recipeId: 'p1' }, { slot: 'dinner', recipeId: 'carne' }],
       conferma: true,
     })).rejects.toBeInstanceOf(BadRequestException);
@@ -340,7 +355,7 @@ describe('⛔ quello che la ricerca mostra, il salvataggio lo accetta', () => {
    */
   it('⚠️ una ricetta del suo paniere si salva anche senza regime scritto', async () => {
     const { s, upsert } = servizio();
-    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     const meals = (upsert.mock.calls[0][0].create.meals ?? []) as { recipeId: string }[];
     expect(meals.map((m) => m.recipeId)).toEqual(['c1', 'p1', 'd1']);
   });
@@ -349,7 +364,7 @@ describe('⛔ quello che la ricerca mostra, il salvataggio lo accetta', () => {
 describe('scrivere la giornata', () => {
   it('⛔ una giornata completa si scrive, col marchio di chi l\'ha scritta', async () => {
     const { s, upsert } = servizio();
-    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA });
+    const esito = await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA });
     expect(esito.scritta).toBe(true);
     const meals = upsert.mock.calls[0][0].create.meals as { scrittaAMano?: { origine?: string; da?: string } }[];
     expect(meals).toHaveLength(3);
@@ -363,7 +378,7 @@ describe('scrivere la giornata', () => {
    */
   it('⛔ una giornata a cui manca un pasto non si scrive', async () => {
     const { s, upsert } = servizio();
-    await expect(s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA.slice(0, 2) }))
+    await expect(s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA.slice(0, 2) }))
       .rejects.toBeInstanceOf(BadRequestException);
     expect(upsert).not.toHaveBeenCalled();
   });
@@ -381,13 +396,13 @@ describe('scrivere la giornata', () => {
   it('⛔ un giorno già aperto si riscrive: prima chiede conferma, poi passa', async () => {
     const g = { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true };
     const primo = servizio({ giorno: g });
-    await expect(primo.s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA }))
+    await expect(primo.s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA }))
       .rejects.toThrow(/Da confermare.*già aperto/);
     /** ⛔ Senza conferma non si scrive NIENTE: l'avviso non è un messaggio decorativo. */
     expect(primo.upsert).not.toHaveBeenCalled();
 
     const { s, upsert } = servizio({ giorno: g });
-    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    const esito = await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     expect(upsert).toHaveBeenCalled();
     /** ⚠️ E l'avviso dice la CONSEGUENZA, non «quello resta suo»: quella frase adesso sarebbe falsa. */
     expect(esito.avvisi.join(' ')).toContain('quello che ha in mano cambia');
@@ -401,7 +416,7 @@ describe('scrivere la giornata', () => {
    */
   it('⛔ la sovrascrittura dopo l\'apertura finisce nel registro', async () => {
     const { s, audit } = servizio({ giorno: { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true } });
-    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     expect((audit.log as jest.Mock).mock.calls[0][0].metadata).toMatchObject({ sovrascrittoDopoApertura: true });
   });
 
@@ -415,7 +430,7 @@ describe('scrivere la giornata', () => {
    */
   it('⛔ a cose fatte l\'avviso sull\'apertura esce dagli avvisi e diventa una coda al passato', async () => {
     const { s } = servizio({ giorno: { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true } });
-    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    const esito = await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     expect(esito.avvisi.join(' ')).toContain('salvando');
     expect(esito.avvisiDopo.join(' ')).not.toContain('salvando');
     /**
@@ -434,7 +449,7 @@ describe('scrivere la giornata', () => {
    */
   it('⛔ quando non si sa, si dice che nessun avviso è partito e di scriverle', async () => {
     const { s, avviso } = servizio({ giorno: { id: 'g1', meals: [], apertoDallaClienteIl: null, apertureTracciate: false } });
-    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    const esito = await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     expect(avviso).not.toHaveBeenCalled();
     expect(esito.dopoIlSalvataggio).toContain('non le è partito nessun');
     expect(esito.dopoIlSalvataggio).toContain('scrivile tu');
@@ -448,9 +463,9 @@ describe('scrivere la giornata', () => {
   it('⛔ un avviso non ancora letto per quel giorno ne blocca un secondo', async () => {
     const { s, avviso, push } = servizio({
       giorno: { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true },
-      avvisiNonLetti: [{ payload: { giorno: '2026-09-10' } }],
+      avvisiNonLetti: [{ payload: { giorno: GIORNO } }],
     });
-    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    const esito = await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     expect(avviso).not.toHaveBeenCalled();
     expect(push.sendToUser).not.toHaveBeenCalled();
     /** ⚠️ E si dice perché, invece di far credere che sia partito. */
@@ -463,7 +478,7 @@ describe('scrivere la giornata', () => {
       giorno: { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true },
       avvisiNonLetti: [{ payload: { giorno: '2026-09-30' } }],
     });
-    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     expect(avviso).toHaveBeenCalled();
   });
 
@@ -597,14 +612,14 @@ describe('scrivere la giornata', () => {
    */
   it('⛔ se lo aveva già aperto, alla cliente arriva l\'avviso — in app e in push', async () => {
     const { s, avviso, push } = servizio({ giorno: { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true } });
-    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     const riga = avviso.mock.calls[0][0].data;
     expect(riga.userId).toBe('c1');
     expect(riga.type).toBe('menu_giorno_riscritto');
     /** ⛔ Il `kind` e la data sono quello che fa aprire QUEL giorno invece del menu di oggi. */
-    expect(riga.payload).toMatchObject({ kind: 'menu_giorno_cambiato', giorno: '2026-09-10' });
+    expect(riga.payload).toMatchObject({ kind: 'menu_giorno_cambiato', giorno: GIORNO });
     expect(push.sendToUser).toHaveBeenCalled();
-    expect((push.sendToUser.mock.calls[0][3] as Record<string, string>).giorno).toBe('2026-09-10');
+    expect((push.sendToUser.mock.calls[0][3] as Record<string, string>).giorno).toBe(GIORNO);
   });
 
   /**
@@ -614,7 +629,7 @@ describe('scrivere la giornata', () => {
    */
   it('⛔ su un giorno mai aperto la cliente non riceve niente', async () => {
     const { s, avviso, push } = servizio();
-    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     expect(avviso).not.toHaveBeenCalled();
     expect(push.sendToUser).not.toHaveBeenCalled();
   });
@@ -622,7 +637,7 @@ describe('scrivere la giornata', () => {
   /** ⚠️ E nemmeno quando NON SAPPIAMO: un avviso su un fatto che non abbiamo è un avviso inventato. */
   it('⚠️ «non si sa se l\'ha aperto» non fa partire nessun avviso', async () => {
     const { s, avviso } = servizio({ giorno: { id: 'g1', meals: [], apertoDallaClienteIl: null, apertureTracciate: false } });
-    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     expect(avviso).not.toHaveBeenCalled();
   });
 
@@ -636,7 +651,7 @@ describe('scrivere la giornata', () => {
     avviso.mockRejectedValueOnce(new Error('database giù'));
     // ⚠️ Senza questa riga la prova passerebbe anche togliendo del tutto l'invio: verificato.
 
-    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    const esito = await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     expect(upsert).toHaveBeenCalled();
     expect(avviso).toHaveBeenCalled();
     expect(esito.scritta).toBe(true);
@@ -645,14 +660,14 @@ describe('scrivere la giornata', () => {
   /** ⚠️ Su un giorno non aperto non c'è nessuna coda: una coda che c'è sempre non si legge più. */
   it('⚠️ senza apertura non c\'è nessuna coda da leggere', async () => {
     const { s } = servizio();
-    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    const esito = await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     expect(esito.dopoIlSalvataggio).toBeNull();
   });
 
   /** ⚠️ E su un giorno mai aperto quel campo NON c'è: un campo sempre presente non conta niente. */
   it('⚠️ su un giorno non aperto la bandierina non si scrive', async () => {
     const { s, audit } = servizio();
-    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     expect((audit.log as jest.Mock).mock.calls[0][0].metadata.sovrascrittoDopoApertura).toBeUndefined();
   });
 
@@ -665,10 +680,10 @@ describe('scrivere la giornata', () => {
    */
   it('⚠️ «non si sa se l\'ha aperto» chiede conferma e poi passa, non blocca', async () => {
     const g = { id: 'g1', meals: [], apertoDallaClienteIl: null, apertureTracciate: false };
-    await expect(servizio({ giorno: g }).s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA }))
+    await expect(servizio({ giorno: g }).s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA }))
       .rejects.toThrow(/Da confermare.*Non si sa/);
     const { s, upsert } = servizio({ giorno: g });
-    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     expect(upsert).toHaveBeenCalled();
   });
 
@@ -678,8 +693,8 @@ describe('scrivere la giornata', () => {
    */
   it('⚠️ fuori banda serve la conferma, e con la conferma passa', async () => {
     const { s } = servizio({ target: 1000 }); // 1700 su 1000 = +70%
-    await expect(s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA })).rejects.toThrow(/Da confermare/);
-    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    await expect(s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA })).rejects.toThrow(/Da confermare/);
+    const esito = await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA, conferma: true });
     expect(esito.avvisi.join(' ')).toContain('sopra');
   });
 
@@ -690,10 +705,10 @@ describe('scrivere la giornata', () => {
    */
   it('⛔ una cliente senza nessun menu mai erogato: si dice, non si indovina la dieta', async () => {
     const { s, upsert } = servizio({ ultimoMenu: null, pool: { recipeIds: ['c1', 'p1', 'd1'], dietId: '' } });
-    await expect(s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA }))
+    await expect(s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA }))
       .rejects.toBeInstanceOf(NotFoundException);
     /** ⚠️ E il messaggio dice cosa fare, non solo cosa manca. */
-    await expect(s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA }))
+    await expect(s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA }))
       .rejects.toThrow(/non ha ancora una dieta/);
     expect(upsert).not.toHaveBeenCalled();
   });
@@ -712,7 +727,7 @@ describe('scrivere la giornata', () => {
   it('⛔ una forzatura finisce nel registro col suo motivo', async () => {
     const { s, audit } = servizio({ profilo: { allergies: ['crostacei'] } });
     await s.scrivi('c1', LUCIA, {
-      data: '2026-09-10',
+      data: GIORNO,
       conferma: true,
       pasti: GIORNATA.map((p) => (p.recipeId === 'p1'
         ? { ...p, bloccata: true, motivoBlocco: 'crostacei', forzatoPerche: 'concordato con la cliente' } : p)),
@@ -733,7 +748,7 @@ describe('⛔ il server rigiudica: il client propone, non certifica', () => {
   it('⛔ un piatto vietato resta vietato anche se il client non lo dice', async () => {
     const { s, upsert } = servizio({ profilo: { allergies: ['crostacei'] } });
     // Il client manda solo slot e recipeId: nessun modo di dichiarare «non è bloccata».
-    await expect(s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA }))
+    await expect(s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA }))
       .rejects.toThrow(/scrivi perché/);
     expect(upsert).not.toHaveBeenCalled();
   });
@@ -742,7 +757,7 @@ describe('⛔ il server rigiudica: il client propone, non certifica', () => {
   it('⛔ col motivo passa, e il registro conta la forzatura vera', async () => {
     const { s, audit } = servizio({ profilo: { allergies: ['crostacei'] } });
     await s.scrivi('c1', LUCIA, {
-      data: '2026-09-10', conferma: true,
+      data: GIORNO, conferma: true,
       pasti: GIORNATA.map((p) => (p.recipeId === 'p1' ? { ...p, forzatoPerche: 'concordato con la cliente' } : p)),
     });
     const meta = (audit.log as jest.Mock).mock.calls[0][0].metadata;
@@ -754,7 +769,7 @@ describe('⛔ il server rigiudica: il client propone, non certifica', () => {
   it('⛔ nome e kcal li mette il server, non il client', async () => {
     const { s, upsert } = servizio();
     await s.scrivi('c1', LUCIA, {
-      data: '2026-09-10',
+      data: GIORNO,
       pasti: GIORNATA.map((p) => ({ ...p, name: 'INVENTATO', kcal: 1 })) as never,
     });
     const meals = upsert.mock.calls[0][0].create.meals as { name: string; kcal: number }[];
@@ -765,7 +780,7 @@ describe('⛔ il server rigiudica: il client propone, non certifica', () => {
   it('⛔ una ricetta che non esiste o non è attiva non si scrive', async () => {
     const { s, upsert } = servizio();
     await expect(s.scrivi('c1', LUCIA, {
-      data: '2026-09-10', pasti: [...GIORNATA.slice(0, 2), { slot: 'dinner', recipeId: 'inventata' }],
+      data: GIORNO, pasti: [...GIORNATA.slice(0, 2), { slot: 'dinner', recipeId: 'inventata' }],
     })).rejects.toThrow(/non esiste o non è più attiva/);
     expect(upsert).not.toHaveBeenCalled();
   });
@@ -774,7 +789,7 @@ describe('⛔ il server rigiudica: il client propone, non certifica', () => {
   it('⛔ una ricetta messa nel pasto sbagliato non si scrive', async () => {
     const { s } = servizio();
     await expect(s.scrivi('c1', LUCIA, {
-      data: '2026-09-10',
+      data: GIORNO,
       pasti: [{ slot: 'breakfast', recipeId: 'd1' }, { slot: 'lunch', recipeId: 'p1' }, { slot: 'dinner', recipeId: 'c1' }],
     })).rejects.toThrow(/è un piatto da/);
   });
@@ -790,7 +805,7 @@ describe('⛔ il server rigiudica: il client propone, non certifica', () => {
     const conLatte = { id: 'c1', name: 'Porridge al latte', kcal: 400, mealSlot: 'breakfast', ingredients: [{ name: 'latte' }], allergens: [] };
     RICETTE[0] = conLatte;
     try {
-      await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA });
+      await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA });
       const meals = upsert.mock.calls[0][0].create.meals as { substitutions?: unknown[] }[];
       expect(meals[0].substitutions?.length).toBeGreaterThan(0);
     } finally {
@@ -818,7 +833,7 @@ describe('⛔ il nome del piatto entra fra gli ingredienti', () => {
   it('⚠️ e in scrittura si ferma allo stesso modo', async () => {
     const { s } = servizio({ profilo: { allergies: ['crostacei'] } });
     await expect(s.scrivi('c1', LUCIA, {
-      data: '2026-09-10',
+      data: GIORNO,
       pasti: [{ slot: 'breakfast', recipeId: 'c1' }, { slot: 'lunch', recipeId: 'x1' }, { slot: 'dinner', recipeId: 'd1' }],
     })).rejects.toThrow(/scrivi perché/);
   });
@@ -833,7 +848,7 @@ describe('⛔ le ricette spente non esistono', () => {
   it('⛔ e non si possono scrivere nemmeno chiedendole per id', async () => {
     const { s, upsert } = servizio();
     await expect(s.scrivi('c1', LUCIA, {
-      data: '2026-09-10',
+      data: GIORNO,
       pasti: [{ slot: 'breakfast', recipeId: 'c1' }, { slot: 'lunch', recipeId: 'spenta' }, { slot: 'dinner', recipeId: 'd1' }],
     })).rejects.toThrow(/non esiste o non è più attiva/);
     expect(upsert).not.toHaveBeenCalled();
@@ -848,14 +863,14 @@ describe('⛔ il perimetro: si scrive solo alle clienti proprie', () => {
    */
   it('⛔ una cliente non assegnata non si tocca', async () => {
     const { s, upsert } = servizio({ ruoloAttore: 'nutritionist', staffId: 'staff-altra' });
-    await expect(s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA })).rejects.toThrow(/non è assegnata a te/);
+    await expect(s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA })).rejects.toThrow(/non è assegnata a te/);
     await expect(s.ricette('u1', 'c1')).rejects.toThrow(/non è assegnata a te/);
     expect(upsert).not.toHaveBeenCalled();
   });
 
   it('⚠️ e la sua invece sì', async () => {
     const { s, upsert } = servizio({ ruoloAttore: 'nutritionist', staffId: 'staff-n' });
-    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA });
+    await s.scrivi('c1', LUCIA, { data: GIORNO, pasti: GIORNATA });
     expect(upsert).toHaveBeenCalled();
   });
 });
@@ -863,7 +878,7 @@ describe('⛔ il perimetro: si scrive solo alle clienti proprie', () => {
 describe('la cornice della giornata', () => {
   it('⛔ gli slot li detta la DIETA, non il paniere', async () => {
     const { s } = servizio();
-    const c = await s.giornata('u1', 'c1', '2026-09-10');
+    const c = await s.giornata('u1', 'c1', GIORNO);
     expect(c.slotAttesi).toEqual(['breakfast', 'lunch', 'dinner']);
     expect(c.targetKcal).toBe(1700);
   });
@@ -873,7 +888,95 @@ describe('la cornice della giornata', () => {
     const { s } = servizio({
       giorno: { id: 'g1', apertureTracciate: true, apertoDallaClienteIl: null, meals: [{ slot: 'lunch', scrittaAMano: { origine: 'nutrizionista' } }] },
     });
-    const c = await s.giornata('u1', 'c1', '2026-09-10');
+    const c = await s.giornata('u1', 'c1', GIORNO);
     expect(c.esistente?.scrittaAMano).toBe(true);
+  });
+
+  /**
+   * ⛔ **IL MENU DEL GIORNO TORNA DENTRO LA SCHERMATA** — richiesta di Simone, 14/9. Il giudizio
+   * puro ha le sue prove in `giornata-gia-scritta.spec.ts`; qui si prova il **montaggio**, che è il
+   * punto dove si sbaglia: che il servizio rilegga davvero le ricette dal database invece di
+   * ricopiare quello che sta scritto dentro `meals`.
+   */
+  it('⛔ un giorno già erogato torna pasto per pasto', async () => {
+    const { s } = servizio({
+      giorno: {
+        id: 'g1',
+        apertureTracciate: true,
+        apertoDallaClienteIl: null,
+        meals: [
+          { slot: 'breakfast', recipeId: 'c1', name: 'Porridge', kcal: 400 },
+          { slot: 'dinner', recipeId: 'd1', name: 'Pollo e verdure', kcal: 600 },
+        ],
+      },
+    });
+    const c = await s.giornata('u1', 'c1', GIORNO);
+    expect(c.esistente?.pasti).toEqual([
+      expect.objectContaining({ slot: 'breakfast', recipeId: 'c1', nome: 'Porridge', kcal: 400 }),
+      expect.objectContaining({ slot: 'dinner', recipeId: 'd1', nome: 'Pollo e verdure', kcal: 600 }),
+    ]);
+    expect(c.esistente?.nonRiproposti).toEqual([]);
+  });
+
+  /**
+   * ⛔ **IL NOME E LE KCAL SONO QUELLI DI OGGI.** Dentro `meals` c'è lo scatto di quando il giorno è
+   * stato scritto: se il servizio lo ricopiasse, la prova resterebbe verde e la schermata mostrerebbe
+   * un piatto che in catalogo si chiama diversamente e pesa diversamente. È lo stesso motivo per cui
+   * il `POST` non si fida del browser.
+   */
+  it('⛔ nome e kcal si rileggono dal catalogo, non da meals', async () => {
+    const { s } = servizio({
+      giorno: {
+        id: 'g1',
+        apertureTracciate: true,
+        apertoDallaClienteIl: null,
+        meals: [{ slot: 'breakfast', recipeId: 'c1', name: 'Come si chiamava allora', kcal: 1 }],
+      },
+    });
+    const c = await s.giornata('u1', 'c1', GIORNO);
+    expect(c.esistente?.pasti?.[0]).toEqual(expect.objectContaining({ nome: 'Porridge', kcal: 400 }));
+  });
+
+  /**
+   * ⛔ **E il verdetto si rifà con le esclusioni di ADESSO**: fra la scrittura e oggi la cliente può
+   * aver dichiarato un'allergia. Il piatto torna **barrato**, e per salvarlo ci vorrà il motivo.
+   */
+  it('⛔ un piatto diventato incompatibile torna barrato', async () => {
+    const { s } = servizio({
+      profilo: { allergies: ['crostacei'] },
+      giorno: {
+        id: 'g1',
+        apertureTracciate: true,
+        apertoDallaClienteIl: null,
+        meals: [{ slot: 'lunch', recipeId: 'p1', name: 'Insalata di gamberi', kcal: 700 }],
+      },
+    });
+    const c = await s.giornata('u1', 'c1', GIORNO);
+    expect(c.esistente?.pasti?.[0].bloccata).toBe(true);
+    expect(c.esistente?.pasti?.[0].motivoBlocco).toBeTruthy();
+  });
+
+  /** ⛔ La ricetta spenta non si ripropone, e non sparisce in silenzio: esce col nome che aveva. */
+  it('⛔ la ricetta non più attiva si dice, col nome', async () => {
+    const { s } = servizio({
+      giorno: {
+        id: 'g1',
+        apertureTracciate: true,
+        apertoDallaClienteIl: null,
+        meals: [{ slot: 'lunch', recipeId: 'spenta', name: 'Vecchia ricetta', kcal: 500 }],
+      },
+    });
+    const c = await s.giornata('u1', 'c1', GIORNO);
+    expect(c.esistente?.pasti).toEqual([]);
+    expect(c.esistente?.nonRiproposti).toEqual([
+      { slot: 'lunch', nome: 'Vecchia ricetta', perche: 'non è più in catalogo' },
+    ]);
+  });
+
+  /** ⚠️ Nessun giorno scritto: niente da riproporre e niente da spiegare. */
+  it('⚠️ su un giorno vuoto non c\'è nessun esistente', async () => {
+    const { s } = servizio();
+    const c = await s.giornata('u1', 'c1', GIORNO);
+    expect(c.esistente).toBeNull();
   });
 });

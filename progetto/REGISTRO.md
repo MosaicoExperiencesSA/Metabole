@@ -18,6 +18,47 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-14
+
+- `[Sviluppo]` ⛔ **«Scrivi il menu a mano» apre il giorno che c'è già, pasto per pasto.** Richiesta
+  di Simone del 14/9: *«se scelgo un giorno già erogato dovrebbe comparire il menu esistente, così
+  se il nutrizionista deve modificare solo uno dei pasti non perde tutto il resto»*. La schermata si
+  apriva **vuota** anche sopra un giorno pieno (`setScelte({})` a ogni caricamento), e il server da
+  quella porta mandava solo tre bandierine più i `meals` grezzi che non leggeva nessuno: per
+  cambiare la cena bisognava ricomporre anche colazione e pranzo cercandole nel catalogo.
+  ⚠️ **La causa non era la schermata ma il dato**: `corniceDi` leggeva già il giorno esistente e ne
+  buttava via il contenuto.
+  ⛔ **Il verdetto si rifà ADESSO, non si copia da `meals`.** Dentro il giorno ci sono anche nome e
+  kcal di quando è stato scritto: riusarli sarebbe fidarsi di uno scatto vecchio, e fra allora e
+  oggi la cliente può aver dichiarato un'allergia. Da `meals` si prende solo **quale ricetta in
+  quale pasto** (più il motivo di una forzatura) e si ripassa da `valutate`, la stessa porta della
+  ricerca e del salvataggio. Un piatto diventato incompatibile torna **barrato** e per salvarlo ci
+  vuole il motivo, come se lo si fosse appena scelto; il motivo vecchio torna **solo se il piatto è
+  ancora bloccato**, altrimenti sarebbe una forzatura raccontata e mai avvenuta.
+  ⛔ **Si ripropone solo quello che il salvataggio accetterebbe**, e quello che resta fuori **si
+  dice col nome**: ricetta non più in catalogo, pasto che la sua giornata non ha più (un digiuno
+  acceso, una dieta cambiata), ricetta spostata di pasto in catalogo, regime non ammesso fuori dal
+  paniere, due piatti sullo stesso pasto. Una riga che sparisce in silenzio fa leggere «Cena · da
+  scegliere» e concludere che quel giorno la cena non ci fosse — mentre c'era.
+  ⚠️ Vale anche per i giorni **erogati dal motore**, che è il caso normale: la forma dei pasti è la
+  stessa, `scrittaAMano` ce l'hanno solo quelli a mano. ⚠️ La lettura in più sta **solo** in
+  `giornata()` e non in `corniceDi`, che la usa anche `scrivi` e pagherebbe il giro a ogni
+  salvataggio. File nuovo: `backend/src/menu/giornata-gia-scritta.ts` (puro, con le sue prove).
+
+- `[Sviluppo]` ⚠️ **Cinque prove di `menu-a-mano.service.spec.ts` erano diventate rosse da sole**, e
+  non per colpa di questa consegna: la data `2026-09-10` era scritta a mano quarantacinque volte, e
+  passato il 10 settembre `avvisaGiornoRiscritto` ha cominciato a rispondere «quel giorno è già
+  passato». È la trappola che il progetto ha già scritto una volta — *una data a mano in un test ha
+  una scadenza* — ed è arrivata a scadenza. Adesso il giorno si calcola da oggi (tre giorni avanti,
+  perché resti futuro anche sotto `test:notte` e a cavallo della mezzanotte di Roma).
+
+- `[Sviluppo]` ⚠️ **E una prova del richiamo ricorrente era verde di mattina e rossa di pomeriggio**
+  (`richiamo-ricorrente-scan.spec.ts`, dalla consegna del 12/9). `dayRange` rende la **mezzanotte**
+  di N giorni fa; la prova misurava da `Date.now()`, cioè N giorni **più l'ora del giorno**: prima
+  di mezzogiorno `Math.round` riportava a N, dopo portava a N+1. Adesso l'attesa si calcola con la
+  stessa funzione del codice (`oggiPiu`), che è la regola già scritta nel progetto: una prova che
+  dipende dall'ora in cui gira non dice se il codice è giusto, dice che ore sono.
+
 ## 2026-09-12
 
 - `[Sviluppo]` ⛔ **Niente piano, niente notifiche — né alla cliente né alla coach.** Decisione di

@@ -52,12 +52,66 @@ interface RigaRicetta {
   fuoriDalPaniere?: boolean;
 }
 
+/**
+ * ⛔ **UN PASTO CHE C'È GIÀ IN QUEL GIORNO**, come lo rende il server — nella stessa forma di una
+ * riga di ricerca, perché è la stessa cosa: una ricetta giudicata **adesso** sulle esclusioni di
+ * questa cliente. Il nome e le kcal sono quelli di oggi, non quelli scritti dentro il menu il
+ * giorno che è stato composto.
+ */
+interface PastoRiproposto {
+  slot: string;
+  recipeId: string;
+  nome: string;
+  kcal: number;
+  bloccata: boolean;
+  motivoBlocco: string | null;
+  fuoriDalPaniere: boolean;
+  /** Il motivo scritto la volta scorsa, se quel piatto era stato forzato ed è ancora bloccato. */
+  forzatoPerche?: string;
+}
+
 interface Cornice {
   data: string;
   slotAttesi: string[];
   targetKcal: number | null;
   tolleranzaPct: number;
-  esistente: { scrittaAMano: boolean; giaAperto: boolean; nonSappiamo: boolean } | null;
+  esistente: {
+    scrittaAMano: boolean;
+    giaAperto: boolean;
+    nonSappiamo: boolean;
+    /** ⚠️ Opzionali: un backend più vecchio non li manda, e la schermata deve aprirsi lo stesso. */
+    pasti?: PastoRiproposto[];
+    nonRiproposti?: { slot: string; nome: string; perche: string }[];
+  } | null;
+}
+
+/**
+ * ⛔ **IL MENU DEL GIORNO TORNA DENTRO I PASTI** — richiesta di Simone, 14/9: *«se scelgo un giorno
+ * già erogato dovrebbe comparire il menu esistente, così se il nutrizionista deve modificare solo
+ * uno dei pasti non perde tutto il resto»*.
+ *
+ * ⚠️ **Si parte da quello che manda il server, non da `meals`.** La schermata non ricostruisce
+ * niente: le righe arrivano già giudicate con le esclusioni di **oggi**, ed è la stessa ragione per
+ * cui il `POST` manda solo `slot` e `recipeId`. Un piatto diventato incompatibile torna barrato, e
+ * il pulsante resta spento finché non si scrive perché lo si serve — esattamente come se lo si
+ * fosse appena scelto.
+ */
+function pastiGiaScritti(c: Cornice | null): Record<string, Scelta> {
+  const fuori: Record<string, Scelta> = {};
+  for (const p of c?.esistente?.pasti ?? []) {
+    fuori[p.slot] = {
+      slot: p.slot,
+      recipeId: p.recipeId,
+      nome: p.nome,
+      kcal: p.kcal,
+      bloccata: p.bloccata,
+      motivoBlocco: p.motivoBlocco,
+      fuoriDalPaniere: p.fuoriDalPaniere,
+      /** ⚠️ Stringa vuota e non `undefined`: il `textarea` sotto è controllato. */
+      forzatoPerche: p.forzatoPerche ?? '',
+    };
+  }
+  return fuori;
 }
 
 /**
@@ -142,7 +196,13 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
     let vivo = true;
     setCaricando(true); setErrore(null); setEsito(null);
     api<Cornice>(`/admin/clients/${clientId}/menu-a-mano/giornata?data=${data}`)
-      .then((c) => { if (vivo) { setCornice(c); setScelte({}); setSlotAperto(null); } })
+      /**
+       * ⛔ **Non si riparte più da zero.** Qui c'era `setScelte({})`: su un giorno pieno la
+       * schermata si apriva vuota, e per cambiare la cena bisognava ricomporre anche colazione e
+       * pranzo. ⚠️ Vale a **ogni cambio di data**, e proprio per questo le scelte si sostituiscono
+       * invece di fondersi: quelle del giorno precedente non devono restare addosso al giorno nuovo.
+       */
+      .then((c) => { if (vivo) { setCornice(c); setScelte(pastiGiaScritti(c)); setSlotAperto(null); } })
       .catch((e) => { if (vivo) setErrore(e instanceof Error ? e.message : 'Caricamento non riuscito.'); })
       .finally(() => { if (vivo) setCaricando(false); });
     return () => { vivo = false; };
@@ -320,11 +380,41 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
       {cornice?.esistente?.nonSappiamo && (
         <Banner kind="warn">Non si sa se la cliente ha già aperto questo giorno: la sua app non lo dice ancora.</Banner>
       )}
-      {cornice?.esistente && !cornice.esistente.giaAperto && !cornice.esistente.nonSappiamo && (
-        <Banner kind="info">
-          Questo giorno ha già un menu{cornice.esistente.scrittaAMano ? ' scritto a mano' : ''}: salvando lo sostituisci.
+      {/*
+        ⛔ **Con i pasti riportati questa riga dice una cosa NUOVA**, e per questo si mostra anche
+        sopra i due avvisi qui sopra — che parlano della cliente, non di cosa c'è nei riquadri.
+        Senza, chi apre un giorno già aperto vedrebbe i pasti pieni e nessuna riga che dice da dove
+        vengono. ⚠️ Quando invece non si è potuto riportare niente, si torna alla frase di prima e
+        si tiene la condizione vecchia: ripetere «salvando lo sostituisci» sotto un avviso che dice
+        già la conseguenza sarebbe rumore.
+      */}
+      {cornice?.esistente && (cornice.esistente.pasti?.length
+        ? (
+          <Banner kind="info">
+            Questo giorno ha già un menu{cornice.esistente.scrittaAMano ? ' scritto a mano' : ''}:
+            {' '}è <b>riportato qui sotto</b>. Cambia solo i pasti che ti servono — gli altri restano questi.
+          </Banner>
+        )
+        : (!cornice.esistente.giaAperto && !cornice.esistente.nonSappiamo && (
+          <Banner kind="info">
+            Questo giorno ha già un menu{cornice.esistente.scrittaAMano ? ' scritto a mano' : ''}: salvando lo sostituisci.
+          </Banner>
+        )))}
+      {/*
+        ⛔ **QUELLO CHE NON SI È POTUTO RIPORTARE SI DICE, COL NOME.** È la parte che si sbaglia in
+        silenzio: se la ricetta della cena non è più in catalogo e la riga semplicemente non
+        comparisse, chi apre legge «Cena · da scegliere» e conclude che quel giorno la cena non ce
+        l'avesse — mentre ce l'aveva, e adesso non c'è più.
+      */}
+      {cornice?.esistente?.nonRiproposti?.length ? (
+        <Banner kind="warn">
+          <b>Non si è potuto riportare tutto.</b>{' '}
+          {cornice.esistente.nonRiproposti
+            .map((n) => `«${n.nome}» (${nomePasto(n.slot)}): ${n.perche}`)
+            .join(' · ')}
+          . Scegli tu cosa mettere al suo posto.
         </Banner>
-      )}
+      ) : null}
       {cornice && cornice.slotAttesi.length === 0 && (
         <Banner kind="warn">Non si sa quanti pasti ha la giornata di questa cliente: non ha ancora una dieta con delle giornate.</Banner>
       )}

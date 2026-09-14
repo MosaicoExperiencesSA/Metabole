@@ -1,0 +1,71 @@
+Scrivi il menu a mano apre il giorno che c'e gia, pasto per pasto
+
+Richiesta di Simone del 14/9: «se scelgo un giorno gia erogato dovrebbe
+comparire il menu esistente, cosi se il nutrizionista deve modificare solo uno
+dei pasti non perde tutto il resto».
+
+La schermata si apriva VUOTA anche sopra un giorno pieno: `setScelte({})` a ogni
+caricamento, e il server da quella porta mandava solo tre bandierine piu i
+`meals` grezzi che non leggeva nessuno. Per cambiare la cena bisognava
+ricomporre anche colazione e pranzo, cercandole nel catalogo una per una — e non
+e solo fatica, e fatica che si puo sbagliare: ricomporre a memoria una giornata
+che il motore aveva bilanciato vuol dire cambiarle due pasti credendo di
+cambiarne uno.
+
+· ⛔ IL VERDETTO SI RIFA ADESSO, non si copia da `meals`. Dentro il giorno ci
+  sono anche nome e kcal di quando e stato scritto: riusarli sarebbe fidarsi di
+  uno scatto vecchio, e fra allora e oggi la cliente puo aver dichiarato
+  un'allergia, la ricetta puo aver cambiato calorie, nome o pasto. Da `meals` si
+  prende solo QUALE RICETTA IN QUALE PASTO (piu il motivo di una forzatura) e si
+  ripassa da `valutate`, la stessa porta della ricerca e del salvataggio. Un
+  piatto diventato incompatibile torna BARRATO e per salvarlo ci vuole il
+  motivo, come se lo si fosse appena scelto.
+· ⛔ IL MOTIVO VECCHIO TORNA SOLO SE IL PIATTO E ANCORA BLOCCATO. Sotto un
+  piatto che oggi non ha piu niente contro sarebbe una forzatura raccontata e
+  mai avvenuta, e finirebbe nel registro come tale.
+· ⛔ SI RIPROPONE SOLO QUELLO CHE IL SALVATAGGIO ACCETTEREBBE, e sono gli stessi
+  cancelli di `scrivi` e `controllaGiornata` letti in anticipo: ricetta non piu
+  in catalogo, pasto che la sua giornata non ha piu (un digiuno acceso, una
+  dieta cambiata), ricetta spostata di pasto in catalogo, regime non ammesso
+  fuori dal paniere, due piatti sullo stesso pasto. Precompilare con una riga
+  che il POST poi rifiuta sarebbe peggio di non precompilare: quella riga non
+  l'ha scelta nessuno, e chi salva scoprirebbe di doverla togliere senza sapere
+  perche c'era.
+· ⛔ E QUELLO CHE RESTA FUORI SI DICE, COL NOME. E la parte che si sbaglia in
+  silenzio: se la ricetta della cena non e piu in catalogo e la riga
+  semplicemente non compare, chi apre legge «Cena · da scegliere» e conclude che
+  quel giorno la cena non ce l'avesse — mentre ce l'aveva, e adesso non c'e piu.
+· ⚠️ VALE ANCHE PER I GIORNI EROGATI DAL MOTORE, che e il caso normale della
+  richiesta: la forma dei pasti e la stessa, `scrittaAMano` ce l'hanno solo
+  quelli scritti a mano e quando manca non c'e nessun motivo da riportare.
+· ⚠️ LA LETTURA IN PIU STA SOLO IN `giornata()`, non dentro `corniceDi`: la
+  stessa cornice la usa `scrivi`, che di quelle righe non sa che farsene e
+  pagherebbe il giro a ogni salvataggio.
+· ⚠️ E UN RAMO MORTO NON E STATO SCRITTO: «lo stesso piatto due volte nella
+  giornata» non puo arrivare fin li, perche in catalogo una ricetta ha un solo
+  `mealSlot` e la seconda comparsa la ferma gia il controllo dello slot. Una
+  prima stesura ce l'aveva e nessuna prova poteva renderlo rosso; al suo posto
+  c'e una prova che dice chi lo ferma davvero.
+
+CINQUE PROVE ERANO GIA ROSSE, e non per colpa di questa consegna: in
+`menu-a-mano.service.spec.ts` la data 2026-09-10 era scritta a mano
+quarantacinque volte, e passato il 10 settembre `avvisaGiornoRiscritto` ha
+cominciato a rispondere «quel giorno e gia passato: non le abbiamo mandato
+nessun avviso». E la trappola che il progetto ha gia scritto una volta — una
+data a mano in un test ha una scadenza — arrivata a scadenza. Adesso il giorno
+si calcola da oggi, tre giorni avanti, perche resti futuro anche sotto
+`test:notte` e a cavallo della mezzanotte di Roma.
+
+E UNA PROVA DEL RICHIAMO RICORRENTE era verde di mattina e rossa di
+pomeriggio (`richiamo-ricorrente-scan.spec.ts`, dalla consegna del 12/9):
+`dayRange` rende la MEZZANOTTE di N giorni fa, la prova misurava da `Date.now()`
+— cioe N giorni piu l'ora del giorno, che `Math.round` riporta a N di mattina e
+a N+1 di pomeriggio. Adesso l'attesa si calcola con la stessa funzione del
+codice (`oggiPiu`).
+
+Misurato: `src/menu` verde (2015 prove, 88 suite) e `tsc -p tsconfig.build.json`
+del backend senza errori. Il backoffice non si compila dalla macchina Linux
+montata (rollup e vitest sono installati per macOS): `tsc -b` e `vitest run`
+vanno lanciati sul Mac.
+
+NIENTE MIGRAZIONI.

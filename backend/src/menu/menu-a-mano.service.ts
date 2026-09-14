@@ -11,6 +11,7 @@ import { slotDaComporre } from './struttura-della-giornata';
 import { controllaGiornata, pastiDaScrivere, type PastoAMano } from './giornata-scritta-a-mano';
 import { KcalNeedService } from './kcal-need.service';
 import { scrittaAMano } from '../vera/menu-da-rifare';
+import { pastiGiaScritti, riproponiGiornata, type VerdettoRicetta } from './giornata-gia-scritta';
 import { laClienteLHaAperto, nonSappiamoSeLHaAperto } from '../vera/menu-da-rifare';
 import { PushService } from '../notifications/push.service';
 import { avvisaGiornoRiscritto, codaPerChiHaSalvato, laGiornataECambiata } from './avviso-giorno-riscritto';
@@ -390,10 +391,53 @@ export class MenuAManoService {
     };
   }
 
-  /** La cornice della giornata: che pasti ha, che fabbisogno, e cosa c'è già scritto. */
+  /**
+   * La cornice della giornata: che pasti ha, che fabbisogno, e **cosa c'è già scritto, pasto per
+   * pasto**.
+   *
+   * ⛔ **IL MENU DEL GIORNO TORNA DENTRO LA SCHERMATA** — richiesta di Simone, 14/9: *«su un giorno
+   * già erogato deve comparire il menu esistente, così se il nutrizionista deve modificare solo uno
+   * dei pasti non perde tutto il resto»*. Prima di oggi da qui uscivano solo tre bandierine
+   * (`scrittaAMano`, `giaAperto`, `nonSappiamo`) e i `meals` grezzi che non leggeva nessuno: la
+   * schermata si apriva vuota sopra un giorno pieno, e cambiare la cena voleva dire ricomporre
+   * anche colazione e pranzo.
+   *
+   * ⚠️ **Il verdetto si rifà ADESSO, non si copia da `meals`.** Dentro il giorno ci sono anche nome e
+   * kcal di quando è stato scritto; riusarli sarebbe fidarsi di uno scatto vecchio, e fra allora e
+   * oggi la cliente può aver dichiarato un'allergia. Perciò da `meals` si prende solo **quale
+   * ricetta in quale pasto** e si ripassa da `valutate`, la stessa porta della ricerca e del
+   * salvataggio. Un piatto diventato incompatibile torna **barrato**, e per salvarlo ci vuole il
+   * motivo — come se lo si fosse appena scelto.
+   *
+   * ⚠️ **È una lettura in più e sta SOLO qui**, non dentro `corniceDi`: la stessa cornice la usa
+   * `scrivi`, che di queste righe non sa che farsene e pagherebbe il giro a ogni salvataggio.
+   */
   async giornata(attoreId: string, clientId: string, dataISO: string) {
     await this.perimetro(attoreId, clientId);
-    return this.corniceDi(clientId, dataISO);
+    const cornice = await this.corniceDi(clientId, dataISO);
+    if (!cornice.esistente) return { ...cornice, esistente: null };
+
+    const esistenti = pastiGiaScritti(cornice.esistente.meals);
+    /** ⚠️ Niente ricette, niente giro: `valutate` è quattro letture, e su un giorno vuoto non servono. */
+    const verdetti = esistenti.length
+      ? await this.valutate(clientId, esistenti.map((p) => p.recipeId))
+      : new Map<string, VerdettoRicetta>();
+    const { righe, nonRiproposti } = riproponiGiornata(esistenti, verdetti, cornice.slotAttesi);
+
+    return {
+      ...cornice,
+      esistente: {
+        ...cornice.esistente,
+        /** I pasti da rimettere nella schermata, già giudicati con le esclusioni di oggi. */
+        pasti: righe,
+        /**
+         * ⛔ **Quelli che c'erano e che oggi non si possono rimettere, col nome e il perché.** Una
+         * riga che sparisce in silenzio fa leggere «Cena · da scegliere» e concludere che quel
+         * giorno la cena non ci fosse.
+         */
+        nonRiproposti,
+      },
+    };
   }
 
   private async corniceDi(clientId: string, dataISO: string) {

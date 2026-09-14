@@ -7298,4 +7298,29 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'non \u00e8 la coda degli avvisi ma il CRM, dove la scheda entra in \u00abPercorso concluso\u00bb.',
   },
 
+  {
+    chiave: 'menu-a-mano-riapre-il-giorno',
+    fatta: true,
+    categoria: SIMONE,
+    ordine: 2,
+    nata: '2026-09-14T12:00',
+    titolo: '\u25b6\ufe0f Scrivi il menu a mano: su un giorno gi\u00e0 erogato compare il menu che c\'\u00e8',
+    dettaglio:
+      'Simone, 14/9: *\u00abse scelgo un giorno gi\u00e0 erogato dovrebbe comparire il menu esistente cos\u00ec '
+      + 'se il nutrizionista deve modificare solo uno dei pasti non perde tutto il resto\u00bb*.\n\n'
+      + '\u26a0\ufe0f La schermata si apriva **vuota** anche sopra un giorno pieno, e il server da quella '
+      + 'porta mandava solo tre bandierine: per cambiare la cena bisognava ricomporre anche colazione '
+      + 'e pranzo cercandole nel catalogo una per una. Non \u00e8 solo fatica: \u00e8 fatica che si pu\u00f2 '
+      + 'sbagliare, perch\u00e9 ricomporre a memoria vuol dire cambiarle due pasti credendo di cambiarne '
+      + 'uno.\n\n'
+      + '\u2705 **FATTO (14/9)**: i pasti tornano nei riquadri, gi\u00e0 giudicati con le esclusioni di '
+      + '**oggi** \u2014 non copiati da `meals`. Un piatto diventato incompatibile torna barrato e per '
+      + 'salvarlo ci vuole il motivo; il motivo scritto la volta scorsa torna solo se il piatto \u00e8 '
+      + 'ancora bloccato.\n'
+      + '\u26d4 **E quello che non si pu\u00f2 riproporre si dice col nome**: ricetta sparita dal catalogo, '
+      + 'pasto che la sua giornata non ha pi\u00f9, ricetta spostata di pasto, regime non ammesso fuori '
+      + 'dal paniere, due piatti sullo stesso pasto. Una riga che sparisce in silenzio fa leggere '
+      + '\u00abCena \u00b7 da scegliere\u00bb e concludere che quel giorno la cena non ci fosse.',
+  },
+
 ];
