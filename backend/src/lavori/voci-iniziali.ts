@@ -7343,6 +7343,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'obiettivo-staff-sovrascritto-dall-app',
+    fatta: true,
     categoria: SIMONE,
     ordine: 3,
     nata: '2026-09-15T12:00',
@@ -7354,7 +7355,11 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'stesso. Nessuna nota, nessun avviso alla coach o al nutrizionista. Anche rifare il questionario crea '
       + 'un obiettivo nuovo che il motore legge al posto di quello.\n\n'
       + '▶️ Due strade: **(a)** dopo una modifica dello staff l\'app non lo lascia più cambiare (lo mostra '
-      + 'e basta); **(b)** lo lascia cambiare ma avvisa chi l\'aveva deciso e scrive la nota.',
+      + 'e basta); **(b)** lo lascia cambiare ma avvisa chi l\'aveva deciso e scrive la nota.\n\n'
+      + '✅ **FATTO (15/9), strada (b)** — Simone: *«si ok»*. Se l\'ultima riga dello storico è '
+      + '`updated_by_staff`, la modifica dall\'app avvisa coach e nutrizionista della cliente (o i capi) **e** chi '
+      + 'aveva deciso (avviso `obiettivo_riscritto_dalla_cliente`, spegnibile dal profilo) e lascia la nota in '
+      + 'scheda. Resta aperto il caso del questionario rifatto, che crea un obiettivo nuovo senza avvisare.',
   },
 
   {

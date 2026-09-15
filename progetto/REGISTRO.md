@@ -20,6 +20,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-15
 
+- `[Sviluppo]` 🔔 **Se la cliente riscrive dall'app l'obiettivo deciso dallo staff, chi l'aveva deciso lo sa.**
+  Seconda metà del 15/9, strada (b) scelta da Simone (*«si ok»*): la cliente può ancora cambiarlo, ma
+  se l'ultima riga dello storico dell'obiettivo è `updated_by_staff` la porta dell'app
+  (`profile.service.updateObjective`) avvisa coach e nutrizionista della cliente (o i capi, se non è
+  assegnata) **e** chi aveva deciso, senza doppioni, e lascia la nota in scheda con prima, dopo e il
+  motivo dello staff. Tipo nuovo `obiettivo_riscritto_dalla_cliente` nel catalogo degli avvisi dello
+  staff (spegnibile dal profilo, arriva anche all'admin); il tocco porta alla scheda dal `clientId`.
+  Best-effort: la modifica della cliente resta anche se l'avviso non parte, e lo dice nei log. La regola
+  sta nel modulo puro (`decisioneDelloStaffDaAvvisare`): avvisa **una volta** — se sopra c'è già una
+  modifica della cliente, l'avviso è partito allora. ⚠️ Resta aperto il questionario rifatto, che crea
+  un obiettivo nuovo senza avvisare. Niente migrazioni.
+
 - `[Sviluppo]` 🎯 **L'obiettivo di una cliente si cambia anche dalla scheda.** Richiesta di Simone del
   15/9: *«admin deve poter modificare l'obiettivo di una cliente»*. La card **Obiettivo** in scheda era
   in sola lettura, e l'obiettivo lo cambiava solo la cliente dall'app. ⚠️ Non è un'etichetta: il

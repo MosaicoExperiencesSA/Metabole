@@ -1,0 +1,19 @@
+Se la cliente riscrive dall app l obiettivo deciso dallo staff, coach, nutrizionista e chi l aveva deciso vengono avvisati
+
+Seconda meta del 15/9, strada (b) scelta da Simone: la cliente puo ancora cambiare l obiettivo dall app, ma con un avviso a chi l aveva deciso.
+
+- profile.service.updateObjective: se l ultima riga dello storico e updated_by_staff, dopo la scrittura avvisa coach e nutrizionista della cliente (o i capi) e chi aveva deciso, senza doppioni, con notificaUtente (in app + push), e scrive la nota in scheda. Best-effort, con log se non parte.
+- clients/obiettivo-dallo-staff.ts: decisioneDelloStaffDaAvvisare (avvisa una volta sola) e testoObiettivoRiscritto (date nel giorno di Roma).
+- staff-notifications.ts: tipo nuovo obiettivo_riscritto_dalla_cliente, spegnibile dal profilo, ruoli coach, nutrizioniste, capo e admin.
+- Prove: profile/obiettivo-riscritto-dalla-cliente.spec.ts (8), mutazioni verificate. Backend 489 suite, 8423 prove verdi.
+- Lavori: spuntata obiettivo-staff-sovrascritto-dall-app. Resta aperto il questionario rifatto.
+
+File:
+backend/src/profile/profile.service.ts
+backend/src/profile/obiettivo-riscritto-dalla-cliente.spec.ts (nuovo)
+backend/src/clients/obiettivo-dallo-staff.ts
+backend/src/notifications/staff-notifications.ts
+backend/src/lavori/voci-iniziali.ts
+progetto/REGISTRO.md
+
+Niente migrazioni, niente variabili d ambiente, niente dipendenze nuove, niente OTA.

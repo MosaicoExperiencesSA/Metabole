@@ -211,3 +211,45 @@ export function testoNotaObiettivo(d: {
     `${kcal} Motivo: ${d.motivo}`
   );
 }
+
+/**
+ * ⛔ **LA CLIENTE RISCRIVE DALL'APP UN OBIETTIVO DECISO DALLO STAFF** (Simone, 15/9: lo può fare, ma
+ * chi l'aveva deciso lo deve sapere).
+ *
+ * Si guarda **l'ultima riga** dello storico prima della modifica: se è `updated_by_staff`, questa
+ * modifica della cliente sta scrivendo sopra una decisione dello staff. Se l'ultima è già sua, la
+ * decisione è stata riscritta prima — e allora l'avviso è già partito quella volta.
+ */
+export interface DecisioneDelloStaff {
+  at: string | null;
+  byUserId: string | null;
+  motivo: string | null;
+}
+
+export function decisioneDelloStaffDaAvvisare(history: unknown): DecisioneDelloStaff | null {
+  if (!Array.isArray(history) || history.length === 0) return null;
+  const ultima = history[history.length - 1] as Record<string, unknown> | null;
+  if (!ultima || typeof ultima !== 'object' || ultima.event !== 'updated_by_staff') return null;
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null);
+  return { at: str(ultima.at), byUserId: str(ultima.byUserId), motivo: str(ultima.motivo) };
+}
+
+/** Il testo dell'avviso e della nota: chi, da cosa a cosa, e cosa aveva deciso lo staff. */
+export function testoObiettivoRiscritto(d: {
+  nome: string;
+  prima: { targetWeightKg: number | null; targetDate: Date | null };
+  dopo: { targetWeightKg: number | null; targetDate: Date | null };
+  decisa: DecisioneDelloStaff;
+}): string {
+  const descrivi = (o: { targetWeightKg: number | null; targetDate: Date | null }) =>
+    `${o.targetWeightKg == null ? '—' : `${kg(o.targetWeightKg)} kg`}` +
+    (o.targetDate ? ` entro il ${gg(giornoLocale(o.targetDate))}` : '');
+  const quando = d.decisa.at && !Number.isNaN(new Date(d.decisa.at).getTime())
+    ? ` il ${gg(giornoLocale(new Date(d.decisa.at)))}`
+    : '';
+  return (
+    `${d.nome} ha cambiato dall'app l'obiettivo deciso dallo staff${quando}: ` +
+    `da ${descrivi(d.prima)} a ${descrivi(d.dopo)}.` +
+    (d.decisa.motivo ? ` Il motivo dello staff era: ${d.decisa.motivo}` : '')
+  );
+}

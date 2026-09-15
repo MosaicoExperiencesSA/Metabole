@@ -67,6 +67,12 @@ export const STAFF_NOTIFICATION_TYPES: StaffNotifType[] = [
    */
   { key: 'client_path_ended', label: 'Percorso concluso', description: 'Una tua cliente ha il piano finito da una settimana e non ha rinnovato.', roles: CARE },
   { key: 'client_path_not_followed', label: 'Non ha seguito', description: 'Una tua cliente ha il piano finito e non ha mai inserito una misura mentre era in corso.', roles: CARE },
+  /**
+   * ⛔ **La cliente ha riscritto dall'app l'obiettivo deciso dallo staff** (Simone, 15/9: lo può
+   * fare, ma chi l'aveva deciso lo deve sapere). Arriva a coach e nutrizionista della cliente (o ai
+   * capi) **e a chi l'aveva deciso**, di solito l'admin — per questo c'è anche `admin`.
+   */
+  { key: 'obiettivo_riscritto_dalla_cliente', label: 'Obiettivo cambiato dalla cliente', description: 'Una cliente ha cambiato dall\'app l\'obiettivo che lo staff aveva deciso.', roles: [...CARE, 'admin'] },
   // --- Responsabile coach (assegnazioni lead) ---
   { key: 'lead_accepted', label: 'Lead accettato', description: 'Una coach ha accettato un lead che le hai assegnato.', roles: RESP },
   { key: 'lead_rejected', label: 'Lead rifiutato', description: 'Una coach ha rifiutato un lead: va riassegnato.', roles: RESP },

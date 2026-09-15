@@ -15,6 +15,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { apriRichiestaVera } from '../vera/apri-richiesta';
 import { apriServeVisita } from '../clients/serve-visita';
+import {
+  type DecisioneDelloStaff,
+  decisioneDelloStaffDaAvvisare,
+  testoObiettivoRiscritto,
+} from '../clients/obiettivo-dallo-staff';
+import { destinatariStaffDellaCliente } from '../common/avvisa-nutrizionista';
+import { notificaUtente } from '../notifications/notifica-utente';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { vaSospesoSubito, type RisposteDigiuno } from '../menu/digiuno-si-puo';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
@@ -398,7 +405,48 @@ export class ProfileService {
       entityId: updated.id,
       metadata: { pace: validation.pace, weightToLoseKg, weeks },
     });
+
+    /**
+     * ⛔ **Se sopra c'era una decisione dello staff, chi l'ha presa lo deve sapere** (Simone, 15/9:
+     * la cliente può cambiarlo, ma con un avviso a chi l'aveva deciso). Best-effort: la modifica
+     * della cliente è già scritta, e un avviso che non parte non la deve disfare.
+     */
+    const decisa = decisioneDelloStaffDaAvvisare(current.history);
+    if (decisa) await this.avvisaObiettivoRiscritto(userId, profile.name ?? 'Una cliente', decisa, current, updated);
     return { objective: updated, validation };
+  }
+
+  private async avvisaObiettivoRiscritto(
+    clientId: string,
+    nome: string,
+    decisa: DecisioneDelloStaff,
+    prima: { targetWeightKg: number | null; targetDate: Date | null },
+    dopo: { targetWeightKg: number | null; targetDate: Date | null },
+  ): Promise<void> {
+    try {
+      const testo = testoObiettivoRiscritto({ nome, prima, dopo, decisa });
+      // Chi segue la cliente (o i capi) **e** chi aveva deciso, senza doppioni.
+      const destinatari = [
+        ...new Set([...(await destinatariStaffDellaCliente(this.prisma, clientId)), ...(decisa.byUserId ? [decisa.byUserId] : [])]),
+      ];
+      let avvisati = 0;
+      for (const destinatario of destinatari) {
+        const ok = await notificaUtente(this.prisma, this.push, {
+          userId: destinatario,
+          type: 'obiettivo_riscritto_dalla_cliente',
+          title: 'Obiettivo cambiato dalla cliente',
+          body: testo,
+          payload: { clientId },
+        });
+        if (ok) avvisati += 1;
+      }
+      await this.prisma.clientNote.create({ data: { clientId, authorId: null, body: testo.slice(0, 5000) } as never });
+      if (!avvisati) {
+        this.logger.warn(`Obiettivo dello staff riscritto da ${clientId}: nessun avviso partito (destinatari: ${destinatari.length}).`);
+      }
+    } catch (e) {
+      this.logger.warn(`Obiettivo dello staff riscritto da ${clientId}, ma avviso o nota NON scritti: ${String(e)}`);
+    }
   }
 
   /**
