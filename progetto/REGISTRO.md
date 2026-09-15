@@ -18,6 +18,33 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-15
+
+- `[Sviluppo]` 🎯 **L'obiettivo di una cliente si cambia anche dalla scheda.** Richiesta di Simone del
+  15/9: *«admin deve poter modificare l'obiettivo di una cliente»*. La card **Obiettivo** in scheda era
+  in sola lettura, e l'obiettivo lo cambiava solo la cliente dall'app. ⚠️ Non è un'etichetta: il
+  deficit calorico (`kcal-need.service`, `deficitFromObjectiveRate`) viene da peso obiettivo e data.
+  Ora la card ha **Modifica** (o **Imposta**, se l'obiettivo non c'è) sotto una chiave di permesso
+  sua, `change_objective`, nata **con** la sua guardia su `PATCH /admin/clients/:id/objective`:
+  **di default solo admin**, gli altri ruoli si accendono dai Permessi (le chiavi passano da 68 a 69,
+  quelle senza guardia restano 26). Si scrivono peso, data, vita e fianchi, con il **motivo
+  obbligatorio** come per le calorie. Il giudizio sta nel modulo puro `clients/obiettivo-dallo-staff.ts`:
+  data dopo oggi (giorno di Roma) e che esista davvero (`2027-02-30` no); ritmo misurato sul **peso di
+  adesso** — la tendenza, e se le pesate sono incoerenti l'ultima pesata o quella di partenza, perché
+  «nessuna tendenza» non può voler dire «nessuna conferma»; oltre la soglia ambiziosa torna un **409
+  con la frase** e il secondo invio con `conferma` passa. Dopo: stato **Confermato**, riga
+  `updated_by_staff` nello storico, **nota in scheda**, audit `client.objective.update`, e i **menu
+  futuri rifatti solo se le calorie cambiano davvero** (stessa strada del cambio calorie: le giornate a
+  mano restano, chi le aveva già aperte viene avvisata). Scrittura con `updatedAt` nel `where`: se la
+  cliente l'ha cambiato nel frattempo risponde **412** (non 409, che la pagina legge come «conferma»).
+  ⛔ **La revisione avversariale ha trovato dodici cose, e le più care erano tre**: un «Salva» senza
+  cambiamenti rifaceva comunque sette giorni di menu; con le pesate incoerenti un ritmo irreale passava
+  senza conferma; e gli avvisi dicevano «la cliente mangia il mantenimento» quando il motore, senza
+  ritmo, usa il **deficit di default**. Tutte corrette, con le prove che le mordono. Aperte e scritte
+  nei Lavori: la cliente può **riscrivere dall'app** l'obiettivo deciso dallo staff senza che nessuno
+  lo sappia (decisione di Simone), e la porta dell'app **non rifà i menu** e misura il ritmo sul peso
+  di partenza. Niente migrazioni.
+
 ## 2026-09-14
 
 - `[Sviluppo]` ⛔ **«Scrivi il menu a mano» apre il giorno che c'è già, pasto per pasto.** Richiesta

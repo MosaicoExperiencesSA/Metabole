@@ -7323,4 +7323,51 @@ export const VOCI_INIZIALI: Voce[] = [
       + '\u00abCena \u00b7 da scegliere\u00bb e concludere che quel giorno la cena non ci fosse.',
   },
 
+  {
+    chiave: 'obiettivo-dallo-staff',
+    fatta: true,
+    categoria: SIMONE,
+    ordine: 2,
+    nata: '2026-09-15T12:00',
+    titolo: '▶️ L\'obiettivo di una cliente si cambia anche dalla scheda',
+    dettaglio:
+      'Simone, 15/9: *«admin deve poter modificare l\'obiettivo di una cliente»*.\n\n'
+      + '⚠️ La card Obiettivo in scheda era in sola lettura: l\'obiettivo lo cambiava solo la cliente '
+      + 'dall\'app. E non è un\'etichetta — il deficit calorico viene da lì.\n\n'
+      + '✅ **FATTO (15/9)**: pulsante Modifica/Imposta sulla card, rotta `PATCH /admin/clients/:id/objective`, '
+      + 'chiave sua `change_objective` (di default **solo admin**, gli altri si accendono dai Permessi). '
+      + 'Peso, data, vita e fianchi, motivo obbligatorio. Ritmo misurato sul peso di adesso: oltre la soglia '
+      + 'chiede conferma. Stato «Confermato», storico, nota in scheda, audit. I menu futuri si rifanno '
+      + '**solo se le calorie cambiano**. Il giudizio sta in `clients/obiettivo-dallo-staff.ts`.',
+  },
+
+  {
+    chiave: 'obiettivo-staff-sovrascritto-dall-app',
+    categoria: SIMONE,
+    ordine: 3,
+    nata: '2026-09-15T12:00',
+    titolo: 'L\'obiettivo deciso dallo staff la cliente lo può riscrivere dall\'app, senza che nessuno lo sappia',
+    dettaglio:
+      'Trovato in revisione il 15/9, non corretto perché la scelta è di Simone.\n\n'
+      + '`PATCH /me/objective` riporta lo stato a «Da confermare» e ricalcola il peso obiettivo dal '
+      + '**peso di partenza**: se la cliente tocca solo le settimane, il peso deciso dallo staff si sposta lo '
+      + 'stesso. Nessuna nota, nessun avviso alla coach o al nutrizionista. Anche rifare il questionario crea '
+      + 'un obiettivo nuovo che il motore legge al posto di quello.\n\n'
+      + '▶️ Due strade: **(a)** dopo una modifica dello staff l\'app non lo lascia più cambiare (lo mostra '
+      + 'e basta); **(b)** lo lascia cambiare ma avvisa chi l\'aveva deciso e scrive la nota.',
+  },
+
+  {
+    chiave: 'obiettivo-app-non-rifa-i-menu',
+    categoria: CODICE,
+    ordine: 3,
+    nata: '2026-09-15T12:00',
+    titolo: 'Quando la cliente cambia l\'obiettivo dall\'app i menu già consegnati restano sulle calorie di prima',
+    dettaglio:
+      'Trovato il 15/9 scrivendo la porta dello staff. `profile.service.updateObjective` scrive l\'obiettivo e '
+      + 'si ferma: il deficit cambia, ma i giorni futuri già erogati non si rifanno (la porta dello staff e '
+      + 'quella delle calorie scritte a mano sì). E misura il ritmo sul **peso di partenza**, mentre le '
+      + 'calorie partono dalla tendenza: alla cliente può dire «sostenibile» un ritmo che nel piatto non lo è.',
+  },
+
 ];

@@ -7,6 +7,7 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { KcalNeedService } from '../menu/kcal-need.service';
 import { ClientsService } from './clients.service';
 import { UpdateClientDto } from './dto/update-client.dto';
+import { ObiettivoDalloStaffService } from './obiettivo-dallo-staff.service';
 
 class AddNoteDto {
   @IsString()
@@ -105,6 +106,32 @@ class FixMeasurementDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(20) @Max(300) thighsCm?: number | null;
 }
 
+/**
+ * L'obiettivo scritto dallo staff (Simone, 15/9). Le circonferenze accettano `null` (= tolta);
+ * assenti = non toccate. ⚠️ I controlli di dominio (data dopo oggi, ritmo) stanno in
+ * `obiettivo-dallo-staff.ts`: qui solo la forma.
+ */
+class ObiettivoDto {
+  @IsNumber({}, { message: 'Il peso obiettivo va scritto in kg.' })
+  @Min(30, { message: 'Un peso obiettivo sotto i 30 kg non è un obiettivo, è un errore di battitura.' })
+  @Max(300, { message: 'Un peso obiettivo sopra i 300 kg non è un obiettivo, è un errore di battitura.' })
+  targetWeightKg!: number;
+
+  @IsString() @MinLength(10) @MaxLength(10) targetDate!: string; // AAAA-MM-GG
+
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(20) @Max(300) targetWaistCm?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(20) @Max(300) targetHipsCm?: number | null;
+
+  /** Obbligatorio, come per le calorie: un obiettivo cambiato senza il suo perché non si può contestare. */
+  @IsString({ message: 'Scrivi il motivo della modifica.' })
+  @MinLength(3, { message: 'Il motivo va scritto per esteso: fra tre mesi lo leggerà qualcuno che non c’era.' })
+  @MaxLength(1000, { message: 'Il motivo non può superare i 1000 caratteri.' })
+  motivo!: string;
+
+  /** «Sì, so che il ritmo è oltre la soglia.» Senza, un ritmo irreale torna indietro con un 409. */
+  @IsOptional() @IsBoolean() conferma?: boolean;
+}
+
 /** Scheda cliente (staff che gestisce i clienti). */
 @Controller('admin/clients')
 @Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
@@ -112,6 +139,7 @@ export class ClientsController {
   constructor(
     private readonly clients: ClientsService,
     private readonly kcalNeed: KcalNeedService,
+    private readonly obiettivo: ObiettivoDalloStaffService,
   ) {}
 
   /** Fabbisogno calorico stimato dal profilo (per il nutrizionista: trasparenza sul target menu). */
@@ -276,6 +304,18 @@ export class ClientsController {
     @Body() dto: FixMeasurementDto,
   ) {
     return this.clients.updateMeasurement(id, user.sub, measurementId, dto);
+  }
+
+  /**
+   * ⛔ **L'OBIETTIVO DELLA CLIENTE, cambiato dallo staff** (Simone, 15/9). Chiave sua,
+   * `change_objective`, nata **con** questa guardia: di default solo admin, gli altri ruoli li
+   * accende Simone dai Permessi. ⚠️ `manage`: qui si scrive, e cambia le calorie nel piatto.
+   */
+  @RequirePage('change_objective', 'manage')
+  @HttpCode(200)
+  @Patch(':id/objective')
+  aggiornaObiettivo(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: ObiettivoDto) {
+    return this.obiettivo.aggiorna(id, user.sub, dto);
   }
 
   /** Cambio della data di inizio del piano: permesso dedicato "change_plan_start". */

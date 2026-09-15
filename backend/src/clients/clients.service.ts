@@ -138,8 +138,13 @@ export class ClientsService {
     return perimetroClienti(this.prisma, actorUserId);
   }
 
-  /** Blocca l'accesso alla scheda di un cliente non assegnato all'attore. */
-  private async assertClientAccess(actorUserId: string, clientUserId: string) {
+  /**
+   * Blocca l'accesso alla scheda di un cliente non assegnato all'attore.
+   *
+   * ⚠️ Pubblico dal 15/9: lo usa anche `ObiettivoDalloStaffService`. Una seconda copia del perimetro
+   * sarebbe la seconda risposta alla stessa domanda.
+   */
+  async assertClientAccess(actorUserId: string, clientUserId: string) {
     const scope = await this.clientScope(actorUserId);
     if (!scope) return;
     const prof = (await this.prisma.clientProfile.findUnique({

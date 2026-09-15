@@ -1,0 +1,30 @@
+L obiettivo di una cliente si cambia anche dalla scheda, con la chiave change_objective
+
+Richiesta di Simone del 15/9: l admin deve poter modificare l obiettivo di una cliente.
+
+- Card Obiettivo in scheda: pulsante Modifica (o Imposta se manca) e finestra con peso, data, vita, fianchi e motivo obbligatorio.
+- Rotta PATCH /admin/clients/:id/objective con @RequirePage change_objective in manage. Chiave nuova, di default solo admin: gli altri ruoli si accendono dai Permessi (chiavi da 68 a 69, senza guardia sempre 26).
+- Giudizio nel modulo puro clients/obiettivo-dallo-staff.ts: data dopo oggi nel giorno di Roma e esistente; ritmo sul peso di adesso (tendenza, altrimenti ultima pesata o peso di partenza); oltre la soglia ambiziosa 409 con la frase, il secondo invio con conferma passa. Avvisi per deficit scritto a mano, fase mantenimento, una settimana o meno, obiettivo non sotto il peso, tetto del deficit.
+- Dopo la scrittura: stato confermato, riga updated_by_staff nello storico, nota in scheda, audit client.objective.update. Menu futuri rifatti con redeliverFutureDays solo se le calorie cambiano.
+- Scrittura con updatedAt nel where: se l obiettivo e cambiato nel frattempo risponde 412. Salvataggio senza cambiamenti: 400. Cliente cancellata: 404.
+- ClientsService.assertClientAccess reso pubblico per non copiare il perimetro.
+- Prove: 49 nuove (modulo puro, service, validazione del corpo vero, chiave sulla rotta, pulsante in scheda), mutazioni verificate.
+- Lavori: spuntata obiettivo-dallo-staff; aperte obiettivo-staff-sovrascritto-dall-app (decisione di Simone) e obiettivo-app-non-rifa-i-menu.
+
+File:
+backend/src/clients/obiettivo-dallo-staff.ts (nuovo)
+backend/src/clients/obiettivo-dallo-staff.spec.ts (nuovo)
+backend/src/clients/obiettivo-dallo-staff.service.ts (nuovo)
+backend/src/clients/obiettivo-dallo-staff.service.spec.ts (nuovo)
+backend/src/clients/clients.controller.ts
+backend/src/clients/clients.module.ts
+backend/src/clients/clients.service.ts
+backend/src/permissions/pages.ts
+backend/src/permissions/chiavi-senza-guardia.spec.ts
+backend/src/lavori/voci-iniziali.ts
+backoffice/src/pages/ClientDetail.tsx
+backoffice/src/pages/Permissions.tsx
+backoffice/src/lib/labels.ts
+progetto/REGISTRO.md
+
+Niente migrazioni, niente variabili d ambiente, niente dipendenze nuove, niente OTA.

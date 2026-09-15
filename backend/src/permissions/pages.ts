@@ -185,6 +185,10 @@ export const BACKOFFICE_PAGES = [
    */
   'clinical_clearance',
   'change_plan_start',   // Cambio della DATA DI INIZIO del piano dalla scheda cliente (flag dedicato)
+  // L'OBIETTIVO della cliente (peso e data) cambiato dalla scheda (Simone, 15/9). Chiave sua perché
+  // il deficit calorico viene da lì: chi la tocca cambia le calorie nel piatto. Guardia su
+  // `PATCH /admin/clients/:id/objective`.
+  'change_objective',
   // Quali pasti salta chi fa digiuno intermittente, dalla scheda cliente. Flag dedicato perché
   // cambia gli slot che il motore eroga: chi lo tocca decide se quella cliente domani mattina
   // avrà una colazione o no (richiesta di Simone del 10/8).
@@ -688,6 +692,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     clinical_clearance: { view: true, manage: true },
     change_fasting_window: { view: true, manage: true },
     change_plan_start: { view: true, manage: true }, // di default solo admin: gli altri li abilita Simone
+    change_objective: { view: true, manage: true }, // di default solo admin: gli altri li abilita Simone
     set_client_password: { view: true, manage: true }, // di default solo admin: gli altri li abilita Simone
     // Solo admin di default. Entrare nell'account di una cliente vuol dire vedere i suoi dati
     // sanitari: si concede a mano, a chi serve, dalla tabella dei permessi.

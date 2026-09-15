@@ -904,6 +904,10 @@ export function ClientDetail() {
   const canFixMeasures = can('fix_measures', 'manage');
   // Cambio data inizio piano (permesso dedicato "Cambia data inizio piano")
   const canChangePlanStart = can('change_plan_start', 'manage');
+  // L'obiettivo della cliente (permesso dedicato "Modifica obiettivo cliente", 15/9)
+  const canChangeObjective = can('change_objective', 'manage');
+  const [obiettivoAperto, setObiettivoAperto] = useState(false);
+  const [kcalGiro, setKcalGiro] = useState(0);
   /**
    * ⛔ **Chiave PROPRIA, non `clients`.** Aprire la scheda di una cliente e **scriverle il menu**
    * sono due poteri diversi: chi scrive una giornata a mano decide cosa mangia una persona per un
@@ -1841,7 +1845,7 @@ export function ClientDetail() {
         </div>
       </div>
 
-      <KcalNeedCard clientId={id ?? ''} />
+      <KcalNeedCard key={kcalGiro} clientId={id ?? ''} />
 
       {/* Note dello staff: editor a sinistra, log a destra */}
       <div className="card">
@@ -2249,14 +2253,47 @@ export function ClientDetail() {
       </div>
       )}
 
-      {/* Obiettivo */}
-      {d.objective && (
+      {/*
+        Obiettivo. ⛔ **Dal 15/9 si cambia anche da qui** (Simone: «admin deve poter modificare
+        l'obiettivo di una cliente»), con la chiave `change_objective`. ⚠️ Chi ha la chiave vede la
+        card anche quando l'obiettivo non c'è ancora: è proprio il caso in cui serve scriverlo.
+      */}
+      {(d.objective || canChangeObjective) && (
         <div className="card">
-          <h2>Obiettivo</h2>
-          <Row label="Peso obiettivo" value={d.objective.targetWeightKg ? `${d.objective.targetWeightKg} kg` : '—'} />
-          <Row label="Entro il" value={date(d.objective.targetDate)} />
-          <Row label="Stato" value={d.objective.status === 'confirmed' ? 'Confermato' : d.objective.status === 'proposed' ? 'Da confermare' : d.objective.status} />
+          <div className="spread">
+            <h2 style={{ margin: 0 }}>Obiettivo</h2>
+            {canChangeObjective && (
+              <button className="btn ghost sm" onClick={() => setObiettivoAperto(true)}>
+                <i className="ti ti-pencil" /> {d.objective ? 'Modifica' : 'Imposta'}
+              </button>
+            )}
+          </div>
+          {d.objective ? (
+            <>
+              <Row label="Peso obiettivo" value={d.objective.targetWeightKg ? `${d.objective.targetWeightKg} kg` : '—'} />
+              <Row label="Entro il" value={date(d.objective.targetDate)} />
+              {d.objective.targetWaistCm != null && <Row label="Vita obiettivo" value={`${d.objective.targetWaistCm} cm`} />}
+              {d.objective.targetHipsCm != null && <Row label="Fianchi obiettivo" value={`${d.objective.targetHipsCm} cm`} />}
+              <Row label="Stato" value={d.objective.status === 'confirmed' ? 'Confermato' : d.objective.status === 'proposed' ? 'Da confermare' : d.objective.status} />
+            </>
+          ) : (
+            <div className="muted" style={{ fontSize: 13, marginTop: 8 }}>Nessun obiettivo: la cliente non ha ancora completato il questionario.</div>
+          )}
         </div>
+      )}
+      {obiettivoAperto && (
+        <ObiettivoModal
+          clientId={id ?? ''}
+          objective={d.objective}
+          onClose={() => setObiettivoAperto(false)}
+          onSaved={(msg) => {
+            setObiettivoAperto(false);
+            setNotice(msg);
+            // ⚠️ Il fabbisogno dipende dall'obiettivo: la card delle calorie si rilegge.
+            setKcalGiro((n) => n + 1);
+            void loadDetail();
+          }}
+        />
       )}
 
       {/* Pesate */}
@@ -3589,6 +3626,144 @@ function FixMeasureModal({ clientId, measure, onClose, onSaved }: {
         <div className="row" style={{ justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
           <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
           <button className="btn" onClick={save} disabled={busy}><i className="ti ti-device-floppy" /> {busy ? 'Salvo…' : 'Salva correzione'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * ⛔ **L'OBIETTIVO SCRITTO DALLO STAFF** (Simone, 15/9). Peso, data e — se servono — vita e
+ * fianchi, più il motivo, che è obbligatorio come per le calorie.
+ *
+ * ⚠️ **Il giudizio sta nel server** (`obiettivo-dallo-staff.ts`): data dopo oggi, ritmo misurato
+ * sul peso di adesso. Un ritmo oltre la soglia torna con un 409 e la frase da leggere, e il secondo
+ * invio con `conferma` passa — come per la data di inizio piano. Qui non si ricopia la regola.
+ */
+function ObiettivoModal({ clientId, objective, onClose, onSaved }: {
+  clientId: string;
+  objective: { targetWeightKg?: number | null; targetDate?: string | null; targetWaistCm?: number | null; targetHipsCm?: number | null } | null;
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+}) {
+  const toS = (v: number | null | undefined) => (v != null ? String(v).replace('.', ',') : '');
+  const [peso, setPeso] = useState(toS(objective?.targetWeightKg));
+  /**
+   * ⚠️ **Il giorno di Roma, non quello UTC**: dall'app la cliente salva un istante qualunque, e alle
+   * 23:30 UTC la card (che legge nel fuso del browser) mostra già il giorno dopo. Precompilare col
+   * giorno UTC voleva dire spostare la data indietro di uno a chi cambiava solo il peso.
+   */
+  const [data, setData] = useState(
+    objective?.targetDate
+      ? new Date(objective.targetDate).toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' })
+      : '',
+  );
+  const [vita, setVita] = useState(toS(objective?.targetWaistCm));
+  const [fianchi, setFianchi] = useState(toS(objective?.targetHipsCm));
+  const [motivo, setMotivo] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [daConfermare, setDaConfermare] = useState<string | null>(null);
+
+  /** '' → null · numero valido → numero · altro → undefined (errore). */
+  const num = (v: string): number | null | undefined => {
+    const t = v.trim();
+    if (t === '') return null;
+    const n = Number(t.replace(',', '.'));
+    return Number.isFinite(n) ? n : undefined;
+  };
+
+  async function salva(conferma: boolean) {
+    setErr(null);
+    const p = num(peso);
+    if (p == null) { setErr('Il peso obiettivo è obbligatorio e deve essere un numero (kg).'); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { setErr('Scegli la data entro cui raggiungerlo.'); return; }
+    const w = num(vita);
+    const h = num(fianchi);
+    if (w === undefined) { setErr('Vita: valore non valido.'); return; }
+    if (h === undefined) { setErr('Fianchi: valore non valido.'); return; }
+    if (motivo.trim().length < 3) { setErr('Scrivi il motivo della modifica.'); return; }
+    const body: Record<string, unknown> = { targetWeightKg: p, targetDate: data, motivo: motivo.trim(), conferma };
+    // ⚠️ Una circonferenza si manda solo se è cambiata: vuota vuol dire «tolta», e togliere quella
+    // che la cliente si era data solo perché qui non la si è riscritta non è una scelta di nessuno.
+    if (w !== (objective?.targetWaistCm ?? null)) body.targetWaistCm = w;
+    if (h !== (objective?.targetHipsCm ?? null)) body.targetHipsCm = h;
+    setBusy(true);
+    try {
+      const r = await api<{
+        avvisi?: string[];
+        targetPrima?: number | null;
+        targetDopo?: number | null;
+        notaInScheda?: boolean;
+        menu?: { removed?: number; delivered?: string[]; ripristinati?: number; errore?: boolean; saltato?: boolean };
+      }>(`/admin/clients/${clientId}/objective`, { method: 'PATCH', body: JSON.stringify(body) });
+      const parti = [`Obiettivo salvato: ${String(p).replace('.', ',')} kg entro il ${date(data)}.`];
+      if (r.targetPrima != null && r.targetDopo != null && r.targetPrima !== r.targetDopo) {
+        parti.push(`Calorie: da ${r.targetPrima} a ${r.targetDopo} kcal/giorno.`);
+      }
+      for (const a of r.avvisi ?? []) parti.push(a);
+      if (r.menu?.saltato) parti.push('Le calorie non cambiano: i menu restano quelli.');
+      else if (r.menu?.errore) parti.push('⚠️ I menu già consegnati NON sono stati rifatti: usa «Rigenera menu».');
+      else if (r.menu?.ripristinati) parti.push('⚠️ I menu futuri non si potevano rifare adesso e sono rimasti com\'erano.');
+      else if (r.menu?.removed) parti.push(`Menu dei prossimi giorni rifatti (${r.menu.delivered?.length ?? 0}).`);
+      if (r.notaInScheda === false) parti.push('⚠️ La nota in scheda non è stata scritta.');
+      onSaved(parti.join(' '));
+    } catch (e) {
+      // 409 = il ritmo è oltre la soglia: non un errore, una domanda.
+      if (e instanceof ApiError && e.status === 409 && !conferma) {
+        setDaConfermare(e.message);
+      } else {
+        setErr(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const F = (label: string, v: string, set: (x: string) => void, unit: string) => (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)' }}>
+      <span>{label} ({unit})</span>
+      <input className="input" inputMode="decimal" value={v} onChange={(e) => { set(e.target.value); setDaConfermare(null); }} placeholder="—" />
+    </label>
+  );
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
+        <div className="spread" style={{ marginBottom: 12 }}>
+          <h2 style={{ margin: 0 }}><i className="ti ti-target" /> Obiettivo della cliente</h2>
+          <button className="btn ghost sm" onClick={onClose}><i className="ti ti-x" /> Chiudi</button>
+        </div>
+        <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
+          Il deficit calorico viene da qui: se cambiando peso o data cambiano le calorie, i menu dei prossimi giorni si rifanno.
+          L'obiettivo resta «Confermato» e la modifica finisce nelle note e nel log.
+        </p>
+        {err && <Banner kind="err">{err}</Banner>}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {F('Peso obiettivo', peso, setPeso, 'kg')}
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)' }}>
+            <span>Entro il</span>
+            <input className="input" type="date" value={data} onChange={(e) => { setData(e.target.value); setDaConfermare(null); }} />
+          </label>
+          {F('Vita obiettivo', vita, setVita, 'cm')}
+          {F('Fianchi obiettivo', fianchi, setFianchi, 'cm')}
+        </div>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)', marginTop: 12 }}>
+          <span>Motivo (obbligatorio)</span>
+          <textarea className="input" rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={1000} />
+        </label>
+        {daConfermare && (
+          <Banner kind="warn">
+            {daConfermare}
+            <div className="row" style={{ gap: 8, marginTop: 8 }}>
+              <button className="btn sm" onClick={() => void salva(true)} disabled={busy}>{busy ? 'Salvo…' : 'Confermo'}</button>
+              <button className="btn ghost sm" onClick={() => setDaConfermare(null)} disabled={busy}>Correggo</button>
+            </div>
+          </Banner>
+        )}
+        <div className="row" style={{ justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+          <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
+          <button className="btn" onClick={() => void salva(false)} disabled={busy}><i className="ti ti-device-floppy" /> {busy ? 'Salvo…' : 'Salva obiettivo'}</button>
         </div>
       </div>
     </div>

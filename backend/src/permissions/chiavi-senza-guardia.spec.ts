@@ -78,6 +78,10 @@ describe('le chiavi di permesso che nessuna guardia legge', () => {
    * — *il registro comincia a mentire* — pagata restringendo la sentinella per farla combaciare.
    * Adesso il banner è dentro la prova, e non si può più aggiustare la prova al posto del banner.
    *
+   * ✅ **26 su 69 dal 15/9**: `change_objective` è nata **con** la sua `@RequirePage` (l'obiettivo
+   * della cliente cambiato dalla scheda), quindi le chiavi salgono e quelle senza guardia restano 26.
+   * ⚠️ Il verso giusto, per la quinta volta.
+   *
    * ✅ **26 su 68 dal 7/9 sera tardi**, e per la prima volta il numero scende su chiavi che
    * **decidono davvero**: `escalations`, `health_documents`, `assign_nutritionist`,
    * `lead_acceptance`, `engine_protocols`. ⚠️ La differenza con le dieci del 5/9 è tutta qui: là
@@ -116,8 +120,8 @@ describe('le chiavi di permesso che nessuna guardia legge', () => {
    * `diet_descriptions` si è accesa davvero: la chiave era stata dichiarata prima di agganciare la
    * `@RequirePage`, e tre prove sono diventate rosse nello stesso momento.
    */
-  it('⚠️ e sono 26 su 68: il numero che sta scritto nella voce e nel banner', () => {
-    expect(BACKOFFICE_PAGES.length).toBe(68);
+  it('⚠️ e sono 26 su 69: il numero che sta scritto nella voce e nel banner', () => {
+    expect(BACKOFFICE_PAGES.length).toBe(69);
     expect(senza.length).toBe(26);
     const banner = readFileSync(
       join(__dirname, '..', '..', '..', 'backoffice', 'src', 'pages', 'Permissions.tsx'), 'utf8',

@@ -19,6 +19,7 @@ import { PersonalBaseModule } from '../personal-base/personal-base.module';
 import { SignalsModule } from '../signals/signals.module';
 import { ClientsController } from './clients.controller';
 import { ClientsService } from './clients.service';
+import { ObiettivoDalloStaffService } from './obiettivo-dallo-staff.service';
 
 @Module({
   /**
@@ -28,7 +29,7 @@ import { ClientsService } from './clients.service';
    */
   imports: [AuthModule, MenuModule, NotificationsModule, CoachTasksModule, AgendaModule, PauseModule, SignalsModule, PersonalBaseModule],
   controllers: [ClientsController],
-  providers: [ClientsService],
+  providers: [ClientsService, ObiettivoDalloStaffService],
   /**
    * ⚠️ Esportato per Vera (13/8). Il contratto fra le due sessioni dice che la scrittura delle
    * allergie passa dal **punto unico che esiste già** — `updateClient`, che controlla il permesso
