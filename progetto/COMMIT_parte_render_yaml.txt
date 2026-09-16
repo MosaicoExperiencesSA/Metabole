@@ -1,0 +1,25 @@
+Summary:
+render.yaml di nuovo leggibile: dal 19/8 Render scartava il Blueprint e i cron nuovi non nascevano
+
+Description:
+Trovato il 16/9 cercando il cron dell invito a Gaia: il Blueprint di Render era in «Failed sync» dal 19/8
+(21508a7, 2ef4626, 4805528). La riga preDeployCommand conteneva «non riuscito: l elenco» e in YAML due punti
+e spazio dentro un valore senza virgolette è un errore («mapping values are not allowed»): Render scartava
+il file intero.
+
+Conseguenze fino a oggi:
+- il cron metabole-cron-digiuno-push non è mai stato creato: le push del digiuno non sono mai partite;
+- l allineamento automatico dei Lavori al rilascio (allinea-lavori.ts nel preDeployCommand) non è mai stato attivo;
+- il cron metabole-cron-invito-gaia non si creava.
+
+Correzione: il comando sta in un blocco YAML >- (stesso identico comando, verificato col parser).
+Prova nuova in cron.controller.spec.ts: legge render.yaml con js-yaml e cerca i «: » nei valori senza
+virgolette. Fallisce col file vecchio, passa con quello nuovo. Voce Lavori render-yaml-illeggibile.
+
+File:
+render.yaml
+backend/src/cron/cron.controller.spec.ts
+backend/src/lavori/voci-iniziali.ts
+progetto/REGISTRO.md
+
+Niente migrazioni. Nessuna dipendenza nuova. Niente app.

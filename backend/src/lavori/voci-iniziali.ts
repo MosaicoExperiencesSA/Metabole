@@ -7461,4 +7461,24 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'giorni al ritmo attuale, e il numero si alza da lì (massimo 1000).',
   },
 
+  {
+    chiave: 'render-yaml-illeggibile',
+    fatta: true,
+    categoria: SIMONE,
+    ordine: 1,
+    nata: '2026-09-16T16:00',
+    titolo: '⛔ render.yaml era illeggibile dal 19/8: i cron digiuno-push e invito-gaia non sono mai nati',
+    dettaglio:
+      'Trovato il 16/9 cercando il cron dell\'invito a Gaia su Render: il Blueprint segnava «Failed sync» su tre '
+      + 'rilasci di fila (19/8, 21/8, 16/9). La riga `preDeployCommand` conteneva «non riuscito: l elenco», e in YAML '
+      + 'due punti e spazio dentro un valore senza virgolette è un errore: Render scartava il file intero.\n\n'
+      + 'Conseguenze: **le push del digiuno non sono mai partite** (il cron `metabole-cron-digiuno-push` non è mai '
+      + 'esistito), l\'allineamento automatico dei Lavori al rilascio non è mai stato attivato, e il cron dell\'invito a '
+      + 'Gaia non si creava.\n\n'
+      + '✅ **FATTO (16/9)**: il comando è in un blocco `>-`; una prova nuova in `cron.controller.spec.ts` legge il file '
+      + 'con un parser YAML vero e cerca i «: » nei valori senza virgolette. La prova di prima cercava solo le rotte '
+      + 'dentro il testo, e passava anche con il file rotto.\n\n'
+      + '⚠️ Dopo la push: su Render, Blueprint Metabole → deve risultare **Synced**, e devono comparire i due cron.',
+  },
+
 ];

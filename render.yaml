@@ -54,7 +54,13 @@ services:
     # ⛔ Il `|| true` non è pigrizia: sta nella stessa riga delle MIGRAZIONI, e far fallire il
     # rilascio di un'app che serve delle clienti **per la contabilità dei nostri compiti** sarebbe
     # una sproporzione. Se non riesce, l'elenco resta indietro di un giro e lo dicono i log.
-    preDeployCommand: (npx prisma migrate deploy || (echo 'Lock occupato, riprovo tra 20s…' && sleep 20 && npx prisma migrate deploy)) && npx prisma db seed && (CONFERMA=1 npx ts-node --transpile-only prisma/allinea-lavori.ts || echo '⚠️ Allineamento Lavori non riuscito: l elenco resta indietro di un giro.')
+    # ⛔ Il comando sta in un blocco `>-` e non scritto dopo i due punti: contiene «non riuscito: l elenco»,
+    # e in YAML due punti seguiti da uno spazio dentro un valore non quotato rendono il file illeggibile.
+    # Dal 19/8 al 16/9 è successo proprio questo: ogni sincronizzazione del Blueprint falliva, e i cron
+    # nuovi (digiuno-push, invito-gaia) non sono mai stati creati. La prova in `cron.controller.spec.ts`
+    # ora lo controlla.
+    preDeployCommand: >-
+      (npx prisma migrate deploy || (echo 'Lock occupato, riprovo tra 20s…' && sleep 20 && npx prisma migrate deploy)) && npx prisma db seed && (CONFERMA=1 npx ts-node --transpile-only prisma/allinea-lavori.ts || echo '⚠️ Allineamento Lavori non riuscito: l elenco resta indietro di un giro.')
     startCommand: node dist/main.js
     healthCheckPath: /health
     envVars:

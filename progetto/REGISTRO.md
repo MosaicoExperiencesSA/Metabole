@@ -20,6 +20,14 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-16
 
+- `[Sviluppo]` ⛔ **render.yaml era illeggibile dal 19/8.** Cercando su Render il cron dell'invito a Gaia: il
+  Blueprint era in «Failed sync» da tre rilasci. La riga `preDeployCommand` conteneva «non riuscito: l elenco» —
+  due punti e spazio in un valore YAML senza virgolette — e Render scartava il file intero. Per quasi un mese
+  **il cron `metabole-cron-digiuno-push` non è mai esistito** (le push del digiuno non sono mai partite),
+  l'allineamento automatico dei Lavori non è mai stato attivo e il cron `metabole-cron-invito-gaia` non si
+  creava. Corretto con un blocco `>-` (comando identico); prova nuova che legge il file con un parser YAML vero.
+  La prova del 21/8 cercava le rotte nel testo, e passava anche col file rotto.
+
 - `[Sviluppo]` ✨ **Invito a Gaia: 100 lead al giorno, promemoria a 15 giorni, avviso alla coach.** Richiesta di
   Simone del 16/9: un invito quotidiano ai lead in «Nuovo contatto» a provare Gaia, con il link per scegliere la
   password e quello per cancellarsi (gestito), un promemoria dopo 15 giorni e una notifica alla coach — o alla

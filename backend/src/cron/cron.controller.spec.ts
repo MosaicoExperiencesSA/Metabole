@@ -336,6 +336,42 @@ describe('CronController (endpoint per Render Cron)', () => {
     expect(senzaCron).toEqual([]);
   });
 
+  /**
+   * ⛔ **render.yaml DEVE ESSERE UN YAML VALIDO** (16/9).
+   *
+   * La prova qui sopra cerca le rotte dentro il TESTO del file, e passava anche con un file che Render
+   * non riusciva a leggere: dal 19/8 la riga `preDeployCommand` conteneva «non riuscito: l elenco», e
+   * in YAML «due punti e spazio» dentro un valore senza virgolette è un errore. Ogni sincronizzazione
+   * del Blueprint è fallita per quasi un mese, e i cron nuovi (`digiuno-push`, `invito-gaia`) non sono
+   * mai stati creati — senza che niente lo dicesse, perché un cron che non esiste non dà errori.
+   *
+   * Due controlli: il file si legge con un parser vero (js-yaml, già installato come dipendenza indiretta), e
+   * nessun valore scritto dopo i due punti senza virgolette contiene a sua volta «: ».
+   */
+  it('⛔ render.yaml si legge davvero (Render lo scarta intero se non è YAML valido)', () => {
+    const testo = readFileSync(join(__dirname, '..', '..', '..', 'render.yaml'), 'utf8');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const jsyaml = require('js-yaml') as { load: (s: string) => unknown };
+    const dati = jsyaml.load(testo) as { services: { name: string; type: string; preDeployCommand?: string }[] };
+    const nomi = dati.services.map((x) => x.name);
+    expect(nomi).toEqual(expect.arrayContaining(['metabole-backend', 'metabole-cron-invito-gaia', 'metabole-cron-digiuno-push']));
+    const web = dati.services.find((x) => x.type === 'web');
+    expect(web?.preDeployCommand).toMatch(/^\(npx prisma migrate deploy .*allinea-lavori\.ts .*\)$/);
+
+    const sospette = testo
+      .split('\n')
+      .map((riga, i) => ({ riga, n: i + 1, m: /^\s*-?\s*[\w-]+:\s+(.*)$/.exec(riga) }))
+      .filter((x) => x.m && !/^\s*#/.test(x.riga))
+      .filter(({ m }) => {
+        const valore = (m as RegExpExecArray)[1];
+        if (/^['"|>]/.test(valore)) return false; // tra virgolette o in un blocco
+        const senzaCommento = valore.replace(/\s+#.*$/, '');
+        return senzaCommento.includes(': ');
+      })
+      .map((x) => `riga ${x.n}: ${x.riga.trim().slice(0, 60)}`);
+    expect(sospette).toEqual([]);
+  });
+
   it('✨ l invito a Gaia ha il suo tic, pubblico col segreto, e non gira né di notte né coi reminders', async () => {
     invitoGaia.giro.mockClear();
     await controller.daily('segreto-cron');
