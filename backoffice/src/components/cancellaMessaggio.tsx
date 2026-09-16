@@ -37,6 +37,8 @@ import { Modal } from './ui';
 export interface MessaggioCancellabile {
   id: string;
   body: string;
+  /** Dal 16/9 un messaggio può essere solo un file: la conferma deve dire QUALE. */
+  allegati?: { fileName: string }[];
   /** Chi l'ha scritto davvero. ⚠️ Senza questo la ✕ non si può decidere, e non si mostra. */
   senderUserId?: string | null;
 }
@@ -132,6 +134,11 @@ export function ConfermaCancellaMessaggio({ messaggio, inCorso, onAnnulla, onCon
         whiteSpace: 'pre-wrap', maxHeight: 160, overflowY: 'auto',
       }}>
         {messaggio.body}
+        {messaggio.allegati?.map((a) => (
+          <div key={a.fileName} style={{ marginTop: messaggio.body ? 6 : 0 }}>
+            <i className="ti ti-paperclip" /> {a.fileName}
+          </div>
+        ))}
       </div>
       <div className="row" style={{ gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
         <button className="btn ghost sm" disabled={inCorso} onClick={onAnnulla}>

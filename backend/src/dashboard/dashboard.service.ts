@@ -173,12 +173,12 @@ export class DashboardService {
         select: {
           id: true, counterpart: true, lastMessageAt: true,
           client: { select: { email: true, clientProfile: { select: { name: true } } } },
-          messages: { orderBy: { sentAt: 'desc' }, take: 1, select: { body: true } },
+          messages: { orderBy: { sentAt: 'desc' }, take: 1, select: { body: true, attachments: { select: { fileName: true } } } },
         },
       })) as {
         id: string; counterpart: string; lastMessageAt: Date | null;
         client: { email: string; clientProfile: { name: string | null } | null };
-        messages: { body: string }[];
+        messages: { body: string; attachments?: { fileName: string }[] }[];
       }[];
 
       /**
@@ -200,7 +200,8 @@ export class DashboardService {
       out.chat = rows.map((r) => ({
         a: r.client.clientProfile?.name ?? r.client.email,
         b: r.lastMessageAt ? dmy(r.lastMessageAt) : undefined,
-        sub: r.messages[0]?.body?.slice(0, 80),
+        // Un messaggio fatto solo di un file (16/9) dice quale file, invece di un'anteprima vuota.
+        sub: (r.messages[0]?.body || (r.messages[0]?.attachments?.[0] ? `📎 ${r.messages[0].attachments[0].fileName}` : ''))?.slice(0, 80) || undefined,
         chi: ETICHETTA[r.counterpart] ?? r.counterpart,
         daLeggere: nonLette.has(r.id),
       }));

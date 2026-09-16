@@ -6,7 +6,9 @@ import { MenuModule } from '../menu/menu.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 // La banca dati nutrizionale (11/8): Gaia legge i valori da lì prima di dire un numero.
 import { NutrientFactsModule } from '../nutrient-facts/nutrient-facts.module';
+import { AllegatiChatService } from './allegati-chat.service';
 import {
+  ChatFilesController,
   DiagnosiAvvisoChatController,
   MyThreadsController,
   StaffClientChatController,
@@ -25,10 +27,11 @@ import { ConversationSummaryService } from './conversation-summary.service';
     StaffClientChatController,
     ThreadsController,
     DiagnosiAvvisoChatController,
+    ChatFilesController,
   ],
   // `AllergieChatService` vive qui e non in `menu/`: non tocca nessun `MenuDay`, scrive sul profilo
   // sanitario. Gli altri due dialoghi stanno nel modulo menu perché è lui che scrive i menu.
-  providers: [ChatService, ConversationSummaryService, AllergieChatService],
+  providers: [ChatService, ConversationSummaryService, AllergieChatService, AllegatiChatService],
   exports: [ChatService, ConversationSummaryService, AllergieChatService],
 })
 export class ChatModule {}

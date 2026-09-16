@@ -8,6 +8,7 @@ import {
 import { AiService } from '../ai/ai.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import type { AllegatoPronto } from './allegati-chat.service';
 import { StatoAllergie } from './allergie-chat';
 import { AllergieChatService, EsitoAllergie } from './allergie-chat.service';
 import { rilevaIntentoAltroPiatto } from '../menu/cambio-piatto';
@@ -281,6 +282,23 @@ export class ChatService {
       mode === 'read' && (await copreQuestoStaff(this.prisma, staff.id, profile?.assignedNutritionistId ?? null));
 
     if ((user.role === 'coach' || user.role === 'coach_coordinator') && thread.counterpart === 'coach' && (eLaSuaCoach || copreLaCoach)) return;
+    /**
+     * ⛔ **LA COACH LEGGE ANCHE LA CHAT CON LA NUTRIZIONISTA** (Simone, 16/9: *«rendiamo leggibile la
+     * chat del nutrizionista anche alle coach»*).
+     *
+     * **Solo in lettura**, con la stessa regola del thread con Gaia qui sotto: la sua coach e chi ne
+     * risponde in rete. Scriverci no — una risposta della coach dentro quel thread arriverebbe alla
+     * cliente come se fosse della nutrizionista.
+     *
+     * ⚠️ Vale anche per gli allegati: il file si apre da `puoLeggereIlThread`, che passa da qui. E ogni
+     * lettura dello staff resta nell'audit (`chat.staff_read_messages`).
+     */
+    if (
+      (user.role === 'coach' || user.role === 'coach_coordinator') &&
+      thread.counterpart === 'nutritionist' &&
+      mode === 'read' &&
+      (eLaSuaCoach || copreLaCoach)
+    ) return;
     if (user.role === 'nutritionist' && thread.counterpart === 'nutritionist' && (eLaSuaNutrizionista || copreLaNutrizionista)) return;
     if (user.role === 'head_nutritionist' && thread.counterpart === 'nutritionist') return;
 
@@ -334,7 +352,27 @@ export class ChatService {
       where: { threadId, deletedAt: null },
       orderBy: { sentAt: 'asc' },
       take: 200,
+      /**
+       * ⚠️ Degli allegati SOLO i dati per disegnarli: mai `data`. Il contenuto cifrato di duecento
+       * messaggi a ogni giro di dodici secondi sarebbe la chat più pesante del mondo.
+       */
+      include: { attachments: { select: { id: true, fileName: true, mimeType: true, sizeBytes: true } } },
     });
+  }
+
+  /**
+   * La stessa domanda di `assertThreadAccess` in lettura, per chi apre un allegato da un link
+   * firmato (`AllegatiChatService.apri`): un cancello solo per i messaggi e per i loro file.
+   */
+  async puoLeggereIlThread(user: AuthUser, threadId: string): Promise<boolean> {
+    const thread = await this.prisma.chatThread.findUnique({ where: { id: threadId } });
+    if (!thread) return false;
+    try {
+      await this.assertThreadAccess(user, thread, 'read');
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -463,12 +501,31 @@ export class ChatService {
 
   // ---------- Invio ----------
 
-  async postMessage(user: AuthUser, threadId: string, body: string) {
+  async postMessage(user: AuthUser, threadId: string, bodyGrezzo: string | undefined, allegato?: AllegatoPronto) {
     const thread = await this.getThread(threadId);
     await this.assertThreadAccess(user, thread);
+    // ⚠️ Il testo si salva com'è arrivato (come prima): il vuoto si guarda sul testo senza spazi.
+    const body = String(bodyGrezzo ?? '');
+
+    /**
+     * ⛔ **Niente allegati a Gaia** (16/9). Gaia legge il testo, non i file: una foto mandata a lei
+     * resterebbe lì senza risposta, e la cliente penserebbe che l'abbia vista. Si dice subito dove
+     * mandarla.
+     */
+    if (allegato && thread.counterpart === 'ai') {
+      throw new BadRequestException('Gaia non apre i file: mandalo alla tua coach o alla nutrizionista.');
+    }
+    if (!body.trim() && !allegato) throw new BadRequestException('Scrivi un messaggio.');
 
     const message = await this.prisma.message.create({
-      data: { threadId, senderRole: user.role, senderUserId: user.sub, body },
+      data: {
+        threadId,
+        senderRole: user.role,
+        senderUserId: user.sub,
+        body,
+        ...(allegato ? { attachments: { create: [allegato] } } : {}),
+      },
+      include: { attachments: { select: { id: true, fileName: true, mimeType: true, sizeBytes: true } } },
     });
     await this.prisma.chatThread.update({
       where: { id: threadId },

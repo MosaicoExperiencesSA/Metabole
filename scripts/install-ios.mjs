@@ -51,6 +51,16 @@ const STEPS_DIR = path.join(ROOT, 'docs', 'ios-steps');
 const INFO_PLIST = path.join(APP_DIR, 'Info.plist');
 const MOTION_KEY = 'NSMotionUsageDescription';
 const MOTION_REASON = 'Metabole usa i passi per mostrarti i tuoi progressi di movimento della giornata.';
+/**
+ * ⛔ **FOTOCAMERA E FOTO — per gli allegati in chat** (Simone, 16/9). Il campo file di iOS propone
+ * «Scatta foto» e «Libreria foto»: senza queste due dichiarazioni il sistema **chiude l'app** al
+ * primo tocco. L'app mostra la graffetta su iPhone solo dalla versione nativa scritta in
+ * `app/src/lib/allegati.ts` (`IOS_ALLEGATI_DALLA_VERSIONE`), cioè da una build fatta con queste.
+ */
+const CHIAVI_FOTO = [
+  ['NSCameraUsageDescription', 'Metabole usa la fotocamera per mandare una foto nella chat con la tua coach o la tua nutrizionista.'],
+  ['NSPhotoLibraryUsageDescription', 'Metabole apre le tue foto solo per allegarne una nella chat con la tua coach o la tua nutrizionista.'],
+];
 
 const ENTITLEMENTS = path.join(APP_DIR, 'App.entitlements');
 // Team di firma. È «Genius Company SA», NON «Mosaico Experiences SA»: il 6/8 un suggerimento
@@ -317,6 +327,32 @@ async function main() {
     }
   } else {
     console.log('ℹ️  docs/ios-steps/StepCounter.swift assente: contapassi iOS non installato.');
+  }
+
+  // 2c-bis) FOTOCAMERA E FOTO per gli allegati in chat (16/9). Fuori dal ramo del contapassi:
+  //         valgono anche se quello non si installa.
+  if (await exists(INFO_PLIST)) {
+    let ip = await fs.readFile(INFO_PLIST, 'utf8');
+    const prima = ip;
+    for (const [chiave, motivo] of CHIAVI_FOTO) {
+      if (!ip.includes(`<key>${chiave}</key>`)) {
+        ip = ip.replace('</dict>\n</plist>', `\t<key>${chiave}</key>\n\t<string>${motivo}</string>\n</dict>\n</plist>`);
+      }
+    }
+    if (ip !== prima) {
+      await fs.writeFile(INFO_PLIST, ip);
+      console.log('   Allegati chat: aggiunti i permessi fotocamera e foto in Info.plist.');
+    } else {
+      console.log('   Allegati chat: permessi fotocamera e foto già presenti, salto.');
+    }
+    // ⚠️ Si rilegge: se il `replace` non ha trovato la chiusura del file, la chiave NON c'è.
+    const riletto = await fs.readFile(INFO_PLIST, 'utf8');
+    for (const [chiave] of CHIAVI_FOTO) {
+      if (!riletto.includes(`<key>${chiave}</key>`)) {
+        console.error(`❌ ${chiave} NON è in Info.plist: senza, l'app si chiude quando si allega una foto.`);
+        process.exitCode = 1;
+      }
+    }
   }
 
   // 2d) FIRMA E CAPABILITY PUSH — le quattro cose che la rigenerazione di ios/ cancella.

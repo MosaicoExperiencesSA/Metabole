@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../../api/client';
 import { fullName, shortDate, waLink } from '../format';
 import { useApi } from '../hooks';
@@ -47,7 +47,32 @@ const MOOD = ['—', '😞', '😕', '😐', '🙂', '😄'];
 
 export default function CoachClienteDetail() {
   const { id } = useParams();
+  const nav = useNavigate();
   const state = useApi<Detail>(id ? `/admin/clients/${id}` : null);
+  /**
+   * ⛔ **LA CHAT CON LA NUTRIZIONISTA, IN LETTURA** (Simone, 16/9: *«rendiamo leggibile la chat del
+   * nutrizionista anche alle coach»*). Il thread si cerca solo al tocco: l'elenco delle conversazioni
+   * di una cliente lascia una riga nell'audit, e aprire la scheda non è leggerle.
+   */
+  const [cercoChatNutri, setCercoChatNutri] = useState(false);
+  async function apriChatNutrizionista(nome: string) {
+    if (!id) return;
+    setCercoChatNutri(true);
+    setOpErr(null);
+    try {
+      const ts = await api<{ id: string; counterpart: string }[]>(`/staff/clients/${id}/threads`);
+      const t = ts.find((x) => x.counterpart === 'nutritionist');
+      if (!t) {
+        setOpErr('Questa cliente non ha ancora una conversazione con la nutrizionista.');
+        return;
+      }
+      nav(`/chat/${t.id}`, { state: { name: `${nome} · nutrizionista`, soloLettura: true } });
+    } catch (e) {
+      setOpErr(e instanceof ApiError ? e.message : 'Non riesco ad aprire la chat con la nutrizionista.');
+    } finally {
+      setCercoChatNutri(false);
+    }
+  }
   const [uploading, setUploading] = useState<string | null>(null);
   const [payMsg, setPayMsg] = useState<string | null>(null);
   const [payErr, setPayErr] = useState<string | null>(null);
@@ -204,6 +229,9 @@ export default function CoachClienteDetail() {
                   <a className="sf-mini b" href="/chat">
                     <i className="ti ti-message-2" /> Vai in chat
                   </a>
+                  <button className="sf-mini" onClick={() => void apriChatNutrizionista(name)} disabled={cercoChatNutri}>
+                    <i className="ti ti-stethoscope" /> Chat nutrizionista
+                  </button>
                   {!editing && (
                     <button className="sf-mini" onClick={() => startEdit(d)}>
                       <i className="ti ti-edit" /> Modifica

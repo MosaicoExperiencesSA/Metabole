@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
+import type { AllegatoDaInviare, AllegatoRicevuto } from '../lib/allegati';
+import { AllegatiInBolla, AllegatoInAttesa, BottoneAllega, useAllegatiPossibili } from './Allegati';
 import { oraBreve, separatoreGiorno } from '../lib/oraChat';
 import { CancellaMessaggio, useCancellaMessaggio } from './cancellaMessaggio';
 import { TestoConGrassetto } from './TestoConGrassetto';
@@ -13,6 +15,8 @@ interface Msg {
   senderUserId?: string | null;
   body: string;
   sentAt: string;
+  /** Il file allegato (16/9), col link già firmato dal server. */
+  allegati?: AllegatoRicevuto[];
 }
 
 /** Chat reale: thread con assistente AI e con la coach/nutrizionista (se assegnate). */
@@ -34,6 +38,14 @@ export default function ChatSheet() {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
+  /**
+   * ⛔ **L'allegato** (Simone, 16/9): solo con la coach e la nutrizionista — Gaia i file non li legge.
+   * Cambiando conversazione si toglie: un file scelto per la coach non deve partire verso un altro.
+   */
+  const puoAllegare = useAllegatiPossibili();
+  const [allegato, setAllegato] = useState<AllegatoDaInviare | null>(null);
+  const [errore, setErrore] = useState<string | null>(null);
+  useEffect(() => { setAllegato(null); setErrore(null); }, [thread?.id]);
 
   useEffect(() => {
     api<Thread[]>('/me/threads')
@@ -67,14 +79,26 @@ export default function ChatSheet() {
 
   async function send() {
     const body = text.trim();
-    if (!body || !thread || sending) return;
+    const file = thread?.counterpart === 'ai' ? null : allegato;
+    if ((!body && !file) || !thread || sending) return;
     setText('');
     setSending(true);
+    setErrore(null);
     try {
-      const res = await api<{ message: Msg; aiReply?: Msg }>(`/threads/${thread.id}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
+      const res = await api<{ message: Msg; aiReply?: Msg }>(`/threads/${thread.id}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...(body ? { body } : {}),
+          ...(file ? { allegato: { nome: file.nome, tipo: file.tipo, base64: file.base64 } } : {}),
+        }),
+      });
+      setAllegato(null);
       setMessages((m) => [...m, res.message, ...(res.aiReply ? [res.aiReply] : [])]);
-    } catch {
-      /* ignora */
+    } catch (e) {
+      // ⚠️ Prima l'errore si ingoiava: con un file da 8 MB la persona deve sapere che non è partito,
+      // e ritrovare il testo che aveva scritto.
+      setText(body);
+      if (file) setErrore(e instanceof ApiError ? e.message : 'Il file non è partito: riprova.');
     } finally {
       setSending(false);
     }
@@ -114,7 +138,8 @@ export default function ChatSheet() {
                   {/* ⚠️ Il grassetto si DISEGNA (25/8): i testi di Gaia lo scrivono da mesi in
                       markdown e la cliente leggeva gli asterischi in mezzo alla frase. Vedi il
                       riquadro in `TestoConGrassetto`. */}
-                  <TestoConGrassetto testo={m.body} />
+                  <AllegatiInBolla allegati={m.allegati} />
+                  {m.body && <TestoConGrassetto testo={m.body} />}
                   {/* L'ora dentro la bolla, in fondo: il giorno lo dice il separatore sopra. */}
                   <span className="bubble-ora">{oraBreve(m.sentAt)}</span>
                 </div>
@@ -123,7 +148,18 @@ export default function ChatSheet() {
           })}
       </div>
 
+      {allegato && thread?.counterpart !== 'ai' && <AllegatoInAttesa allegato={allegato} onTogli={() => setAllegato(null)} />}
+      {errore && <div style={{ color: '#b3261e', fontSize: 12, margin: '4px 0' }}>{errore}</div>}
       <div className="chat-input">
+        {thread && thread.counterpart !== 'ai' && puoAllegare && (
+          <BottoneAllega
+            className="btn ghost"
+            style={{ width: 'auto', padding: '10px 11px' }}
+            disabilitato={sending}
+            onPronto={(a) => { setErrore(null); setAllegato(a); }}
+            onErrore={setErrore}
+          />
+        )}
         <input
           className="input"
           style={{ borderRadius: 22 }}

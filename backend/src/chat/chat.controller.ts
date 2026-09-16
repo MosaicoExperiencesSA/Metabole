@@ -1,4 +1,7 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import { Type } from 'class-transformer';
+import { SkipThrottle } from '@nestjs/throttler';
+import type { Request, Response } from 'express';
 import {
   IsIn,
   IsInt,
@@ -9,20 +12,64 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { Public } from '../common/decorators/public.decorator';
+import { AllegatiChatService } from './allegati-chat.service';
 import { ChatService } from './chat.service';
 import { ConversationSummaryService } from './conversation-summary.service';
 
+/**
+ * Il file allegato a un messaggio (16/9). Qui solo la forma: tipi ammessi, peso e nome li decide
+ * `allegati-chat.ts`, che sa dire alla cliente cosa non va.
+ */
+class AllegatoDto {
+  @IsString({ message: 'Il file non ha un nome.' })
+  @MaxLength(255, { message: 'Il nome del file è troppo lungo.' })
+  nome!: string;
+
+  @IsString({ message: 'Non riesco a capire che file è.' })
+  @MaxLength(120, { message: 'Non riesco a capire che file è.' })
+  tipo!: string;
+
+  // 8 MB in base64 sono circa 10,7 milioni di caratteri: il tetto vero lo mette `valutaAllegato`.
+  @IsString({ message: 'Il file non è arrivato: riprova ad allegarlo.' })
+  @MaxLength(11_500_000, { message: 'Il file è troppo grande: il massimo è 8 MB.' })
+  base64!: string;
+}
+
 class SendMessageDto {
-  // Il messaggio alla coach: testo libero, e i messaggi di errore li legge la cliente.
+  /**
+   * Il messaggio alla coach: testo libero, e i messaggi di errore li legge la cliente.
+   * ⚠️ Dal 16/9 può mancare **se c'è un allegato** (una foto senza parole è un messaggio). Il «vuoto»
+   * lo guarda il service, che sa anche se c'è il file.
+   */
+  @ValidateIf((o: { allegato?: unknown; body?: unknown }) => !o.allegato || o.body !== undefined)
   @IsString({ message: 'Scrivi un messaggio.' })
-  @MinLength(1, { message: 'Scrivi un messaggio.' })
   @MaxLength(4000, { message: 'Il messaggio è troppo lungo: dividilo in due, si legge meglio.' })
-  body!: string;
+  body?: string;
+
+  @IsOptional()
+  @ValidateNested({ message: 'Il file allegato non è valido.' })
+  @Type(() => AllegatoDto)
+  allegato?: AllegatoDto;
+}
+
+/**
+ * L'indirizzo pubblico del backend. ⚠️ Prima `PUBLIC_API_URL` (lo usano già le email): gli header
+ * `x-forwarded-*` li può scrivere chi chiama. Se manca, com'è visto da chi ha chiamato.
+ */
+export function baseDellaRichiesta(req: Request): string {
+  const fisso = process.env.PUBLIC_API_URL?.trim();
+  if (fisso) return fisso.replace(/\/$/, '');
+  const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0] || req.protocol || 'https';
+  const host = (req.headers['x-forwarded-host'] as string | undefined) || req.headers.host || 'localhost';
+  return `${proto}://${host}`;
 }
 
 /**
@@ -235,20 +282,36 @@ export class StaffClientChatController {
 /** Messaggi: l'accesso è verificato thread per thread nel service. */
 @Controller('threads')
 export class ThreadsController {
-  constructor(private readonly chat: ChatService) {}
+  constructor(
+    private readonly chat: ChatService,
+    private readonly allegati: AllegatiChatService,
+  ) {}
 
+  /** ⚠️ Gli allegati escono col LINK firmato per chi legge, mai col contenuto. */
   @Get(':id/messages')
-  list(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.chat.listMessages(user, id);
+  async list(@CurrentUser() user: AuthUser, @Param('id') id: string, @Req() req: Request) {
+    const base = baseDellaRichiesta(req);
+    const messaggi = await this.chat.listMessages(user, id);
+    return messaggi.map((m) => this.allegati.conLink(m, user.sub, base));
   }
 
   @Post(':id/messages')
-  send(
+  async send(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() dto: SendMessageDto,
+    @Req() req: Request,
   ) {
-    return this.chat.postMessage(user, id, dto.body);
+    // Il file si controlla PRIMA di scrivere qualunque cosa: un messaggio senza il suo allegato
+    // sarebbe una frase che dice «ti mando la foto» senza la foto.
+    const allegato = dto.allegato ? this.allegati.prepara(dto.allegato) : undefined;
+    const r = await this.chat.postMessage(user, id, dto.body, allegato);
+    const base = baseDellaRichiesta(req);
+    return {
+      ...r,
+      message: this.allegati.conLink(r.message, user.sub, base),
+      ...('aiReply' in r && r.aiReply ? { aiReply: this.allegati.conLink(r.aiReply, user.sub, base) } : {}),
+    };
   }
 
   /**
@@ -262,6 +325,48 @@ export class ThreadsController {
     @Param('messageId') messageId: string,
   ) {
     return this.chat.eliminaMessaggio(user, id, messageId);
+  }
+}
+
+/**
+ * ⛔ **IL FILE DI UN ALLEGATO, da un link firmato** (16/9).
+ *
+ * `@Public` perché un `<img>` e un PDF aperto fuori dall'app non mandano il token: l'accesso lo
+ * decide la FIRMA del link (chi, fino a quando) e poi, di nuovo, il cancello delle conversazioni.
+ *
+ * ⚠️ Tre intestazioni che contano:
+ * - `Cross-Origin-Resource-Policy: cross-origin` — helmet mette `same-origin`, e l'app e il
+ *   backoffice stanno su un altro dominio: senza, le foto non si vedrebbero;
+ * - `X-Content-Type-Options: nosniff` — il browser usa il tipo dichiarato e basta;
+ * - `Cache-Control: private` — mai in una cache condivisa (Cloudflare): è un dato di una persona.
+ */
+@Public()
+/**
+ * ⚠️ Niente limite per IP: una conversazione piena di foto, aperta da tre persone dello stesso
+ * ufficio, lo supererebbe con immagini rotte. Qui a proteggere è la firma, come per i cron.
+ */
+@SkipThrottle()
+@Controller('chat-files')
+export class ChatFilesController {
+  constructor(
+    private readonly chat: ChatService,
+    private readonly allegati: AllegatiChatService,
+  ) {}
+
+  @Get(':id')
+  async apri(
+    @Param('id') id: string,
+    @Query() q: { e?: string; u?: string; s?: string },
+    @Res() res: Response,
+  ): Promise<void> {
+    const f = await this.allegati.apri(id, q, (utente, threadId) => this.chat.puoLeggereIlThread(utente, threadId));
+    res.setHeader('Content-Type', f.tipo);
+    res.setHeader('Content-Disposition', f.disposizione);
+    res.setHeader('Content-Length', String(f.contenuto.length));
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cache-Control', 'private, max-age=1800');
+    res.end(f.contenuto);
   }
 }
 

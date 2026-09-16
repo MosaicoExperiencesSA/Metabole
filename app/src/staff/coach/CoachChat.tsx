@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { CancellaMessaggio, useCancellaMessaggio } from '../../components/cancellaMessaggio';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api } from '../../api/client';
+import { api, ApiError } from '../../api/client';
+import type { AllegatoDaInviare, AllegatoRicevuto } from '../../lib/allegati';
+import { AllegatiInBolla, AllegatoInAttesa, BottoneAllega, useAllegatiPossibili } from '../../components/Allegati';
 import { fullName, hourOnly, relDays } from '../format';
 import { useApi } from '../hooks';
 import { Async, Avatar, BackBar, Card, Empty, StaffShell, type TabItem } from '../ui';
@@ -25,6 +27,8 @@ interface Msg {
   senderUserId?: string | null;
   body: string;
   sentAt: string;
+  /** Il file allegato (16/9), col link già firmato dal server. */
+  allegati?: AllegatoRicevuto[];
 }
 
 export function CoachChatList({ tabs }: { tabs: TabItem[] }) {
@@ -108,10 +112,33 @@ export function CoachChatThread({ tabs }: { tabs: TabItem[] }) {
   const { threadId } = useParams();
   const loc = useLocation();
   const name = (loc.state as { name?: string } | null)?.name || 'Conversazione';
+  /**
+   * ⛔ La chat con la nutrizionista aperta da una coach (16/9) si LEGGE e basta: il server rifiuta
+   * la scrittura, e un campo che non può spedire non si mostra.
+   */
+  const soloLettura = !!(loc.state as { soloLettura?: boolean } | null)?.soloLettura;
   const state = useApi<Msg[]>(threadId ? `/threads/${threadId}/messages` : null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
+  /**
+   * ⛔ L'allegato (16/9). Qui si parla sempre in un thread di coach o nutrizionista (l'elenco è
+   * `/staff/threads`, che Gaia non la contiene), quindi il pulsante c'è sempre — salvo gli iPhone
+   * con una versione nativa vecchia (`useAllegatiPossibili`).
+   */
+  const puoAllegare = useAllegatiPossibili();
+  const [allegato, setAllegato] = useState<AllegatoDaInviare | null>(null);
+  const [errore, setErrore] = useState<string | null>(null);
+  /**
+   * ⛔ **Cambiando conversazione si azzera tutto** (revisione, 16/9). Toccando la notifica di
+   * un'altra cliente la rotta resta la stessa (`/chat/:threadId`) e questa schermata NON si smonta:
+   * senza questo, il referto scelto per una cliente partiva alla successiva.
+   */
+  useEffect(() => {
+    setAllegato(null);
+    setErrore(null);
+    setText('');
+  }, [threadId]);
   /**
    * ⛔ **«Chi scrive può cancellare»** (Simone, 21/8), in tutte e quattro le chat. Qui la ricarica è
    * già pronta: `state.reload()` è la stessa che usa il giro ogni dodici secondi, quindi quello che
@@ -139,14 +166,24 @@ export function CoachChatThread({ tabs }: { tabs: TabItem[] }) {
 
   async function send() {
     const body = text.trim();
-    if (!body || !threadId) return;
+    // ⚠️ `sending`: il pulsante è spento durante l'invio, l'Invio della tastiera no.
+    if ((!body && !allegato) || !threadId || sending) return;
     setSending(true);
+    setErrore(null);
     try {
-      await api(`/threads/${threadId}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
+      await api(`/threads/${threadId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...(body ? { body } : {}),
+          ...(allegato ? { allegato: { nome: allegato.nome, tipo: allegato.tipo, base64: allegato.base64 } } : {}),
+        }),
+      });
       setText('');
+      setAllegato(null);
       state.reload();
-    } catch {
-      /* ignora: resta nel campo */
+    } catch (e) {
+      // Il testo resta nel campo; se c'era un file si dice perché non è partito.
+      if (allegato) setErrore(e instanceof ApiError ? e.message : 'Il file non è partito: riprova.');
     } finally {
       setSending(false);
     }
@@ -170,6 +207,7 @@ export function CoachChatThread({ tabs }: { tabs: TabItem[] }) {
                   {/* ⚠️ `mine` guarda il RUOLO (non è la cliente), il gancio guarda la PERSONA: il
                       messaggio di un collega è «mine» per chi legge, ma non è suo. */}
                   <CancellaMessaggio messaggio={m} gancio={canc} />
+                  <AllegatiInBolla allegati={m.allegati} />
                   {m.body}
                   <div style={{ fontSize: 9, opacity: 0.6, marginTop: 3, textAlign: 'right' }}>
                     {hourOnly(m.sentAt)}
@@ -181,7 +219,27 @@ export function CoachChatThread({ tabs }: { tabs: TabItem[] }) {
           </div>
         )}
       </Async>
-      <div className="sf-chat-bar">
+      {soloLettura && (
+        <div className="sf-sub" style={{ padding: '8px 14px' }}>
+          <i className="ti ti-eye" /> La leggi e basta: risponde la nutrizionista. Per scriverle usa la tua chat.
+        </div>
+      )}
+      {!soloLettura && (allegato || errore) && (
+        <div style={{ padding: '0 12px' }}>
+          {allegato && <AllegatoInAttesa allegato={allegato} onTogli={() => setAllegato(null)} />}
+          {errore && <div style={{ color: '#b3261e', fontSize: 12, margin: '4px 0' }}>{errore}</div>}
+        </div>
+      )}
+      {!soloLettura && <div className="sf-chat-bar">
+        {puoAllegare && (
+          <BottoneAllega
+            className="sf-send"
+            style={{ background: 'transparent', color: 'inherit' }}
+            disabilitato={sending}
+            onPronto={(a) => { setErrore(null); setAllegato(a); }}
+            onErrore={setErrore}
+          />
+        )}
         <input
           className="sf-inp"
           placeholder="Scrivi un messaggio…"
@@ -189,10 +247,10 @@ export function CoachChatThread({ tabs }: { tabs: TabItem[] }) {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && send()}
         />
-        <button className="sf-send" onClick={send} disabled={sending || !text.trim()}>
+        <button className="sf-send" onClick={send} disabled={sending || (!text.trim() && !allegato)}>
           <i className="ti ti-send" />
         </button>
-      </div>
+      </div>}
     </StaffShell>
   );
 }

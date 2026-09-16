@@ -64,13 +64,21 @@ export class ConversationSummaryService {
       // Un messaggio cancellato non entra nel riassunto: sarebbe rimetterlo in circolo da un'altra porta.
       where: { threadId, sentAt: { gte: dayStart, lt: dayEnd }, deletedAt: null },
       orderBy: { sentAt: 'asc' },
-      select: { senderRole: true, body: true },
-    })) as MsgRow[];
+      select: { senderRole: true, body: true, attachments: { select: { fileName: true } } },
+    })) as (MsgRow & { attachments?: { fileName: string }[] })[];
     if (!msgs.length) return false;
 
-    const transcript = msgs.map((m) => `${m.senderRole}: ${m.body}`).join('\n');
+    /**
+     * ⚠️ Dal 16/9 un messaggio può essere solo un file: nella trascrizione si dice quale, invece di
+     * una riga «client: » vuota che l'AI non sa leggere.
+     */
+    const testo = (m: MsgRow & { attachments?: { fileName: string }[] }) =>
+      [m.body, ...(m.attachments ?? []).map((a) => `[allegato: ${a.fileName}]`)].filter(Boolean).join(' ');
+    const transcript = msgs.map((m) => `${m.senderRole}: ${testo(m)}`).join('\n');
     const ai = await this.ai.summarizeConversation(transcript, 'it');
-    const firstClient = msgs.find((m) => m.senderRole === 'client')?.body ?? msgs[0].body;
+    // ⚠️ `||` e non `??`: una stringa vuota non è un titolo.
+    const primoDellaCliente = msgs.find((m) => m.senderRole === 'client');
+    const firstClient = (primoDellaCliente && testo(primoDellaCliente)) || testo(msgs[0]);
     const title = ai?.title ?? firstClient.slice(0, 60);
     const summary = ai?.summary ?? null;
 

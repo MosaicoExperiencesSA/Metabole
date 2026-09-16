@@ -5,6 +5,8 @@ import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
 import { portaInFondo } from '../lib/scorri-in-fondo';
 import { TestoConGrassetto } from '../components/TestoConGrassetto';
+import { AllegatiInBolla, AllegatoInAttesa, BottoneAllega } from '../components/Allegati';
+import type { AllegatoDaInviare, AllegatoRicevuto } from '../lib/allegati';
 import {
   BottoneCancellaMessaggio,
   ConfermaCancellaMessaggio,
@@ -33,6 +35,8 @@ interface Msg {
    * dialogo e lo mette qui; se non c'è, non si mostra niente.
    */
   meta?: { contesto?: string } | null;
+  /** Il file allegato (16/9), col link già firmato dal server. */
+  allegati?: AllegatoRicevuto[];
 }
 
 const nameOf = (t: Thread) => t.client?.clientProfile?.name || t.client?.email || 'Cliente';
@@ -47,6 +51,14 @@ export function Chat() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  /** ⛔ L'allegato (Simone, 16/9). Qui ci sono solo thread di coach e nutrizioniste: Gaia non c'è. */
+  const [allegato, setAllegato] = useState<AllegatoDaInviare | null>(null);
+  /**
+   * ⚠️ La conversazione aperta ADESSO (revisione, 16/9): un invio con un file da 8 MB dura; se nel
+   * frattempo se ne apre un'altra, la risposta non deve caricare i messaggi della vecchia sotto la
+   * nuova, né svuotare quello che si sta scrivendo nella nuova.
+   */
+  const aperta = useRef<string | null>(null);
 
   useEffect(() => {
     api<Thread[]>('/staff/threads').then(setThreads).catch(() => setThreads([]));
@@ -88,9 +100,12 @@ export function Chat() {
   }, [msgs]);
 
   async function open(t: Thread) {
+    aperta.current = t.id;
     setSel(t);
     setMsgs([]);
     setError(null);
+    // Un file scelto per una cliente non deve partire verso un'altra.
+    setAllegato(null);
     try {
       setMsgs(await api<Msg[]>(`/threads/${t.id}/messages`));
       // Aprirla È averla letta: il server lo registra da sé, qui si spegne il pallino subito
@@ -102,13 +117,25 @@ export function Chat() {
   }
 
   async function send() {
-    if (!sel || !text.trim()) return;
+    const body = text.trim();
+    // ⚠️ `busy`: il pulsante è spento durante l'invio, Ctrl/⌘+Invio no.
+    if (!sel || busy || (!body && !allegato)) return;
+    const dove = sel.id;
     setBusy(true);
     setError(null);
     try {
-      await api(`/threads/${sel.id}/messages`, { method: 'POST', body: JSON.stringify({ body: text.trim() }) });
+      await api(`/threads/${dove}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...(body ? { body } : {}),
+          ...(allegato ? { allegato: { nome: allegato.nome, tipo: allegato.tipo, base64: allegato.base64 } } : {}),
+        }),
+      });
+      if (aperta.current !== dove) return;
       setText('');
-      setMsgs(await api<Msg[]>(`/threads/${sel.id}/messages`));
+      setAllegato(null);
+      const ms = await api<Msg[]>(`/threads/${dove}/messages`);
+      if (aperta.current === dove) setMsgs(ms);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Invio non riuscito');
     } finally {
@@ -239,7 +266,8 @@ export function Chat() {
                         {m.meta.contesto}
                       </div>
                     )}
-                    <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}><TestoConGrassetto testo={m.body} /></div>
+                    <AllegatiInBolla allegati={m.allegati} />
+                    {m.body && <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}><TestoConGrassetto testo={m.body} /></div>}
                     <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2 }}>{new Date(m.sentAt).toLocaleString('it-IT')}</div>
                   </div>
                 );
@@ -258,7 +286,18 @@ export function Chat() {
               messaggio resta lì, letto. Adesso `Invio` va a capo, e si spedisce col bottone o con
               **⌘/Ctrl + Invio**, che è la scorciatoia che chi scrive molto conosce già.
             */}
+            {allegato && (
+              <div style={{ padding: '0 12px' }}>
+                <AllegatoInAttesa allegato={allegato} onTogli={() => setAllegato(null)} />
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: '1px solid #eee', alignItems: 'flex-end' }}>
+              <BottoneAllega
+                className="btn ghost"
+                disabilitato={busy}
+                onPronto={(a) => { setError(null); setAllegato(a); }}
+                onErrore={setError}
+              />
               <textarea
                 className="input"
                 rows={4}
@@ -268,7 +307,7 @@ export function Chat() {
                 onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }}
                 placeholder="Scrivi un messaggio…  (⌘/Ctrl + Invio per inviare)"
               />
-              <button className="btn" onClick={() => void send()} disabled={busy || !text.trim()}>{busy ? '…' : 'Invia'}</button>
+              <button className="btn" onClick={() => void send()} disabled={busy || (!text.trim() && !allegato)}>{busy ? '…' : 'Invia'}</button>
             </div>
           </>
         )}

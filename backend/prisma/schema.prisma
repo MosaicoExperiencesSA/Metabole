@@ -1212,9 +1212,32 @@ model Message {
    */
   deletedAt    DateTime?  @map("deleted_at")
   deletedById  String?    @map("deleted_by_id")
+  attachments  MessageAttachment[]
 
   @@index([threadId, sentAt])
   @@map("message")
+}
+
+/**
+ * GLI ALLEGATI DELLE CHAT (Simone, 16/9: «nelle chat tutte, anche quella del Nutrizionista, mettiamo
+ * la possibilità di allegare un file, immagine, ecc»).
+ *
+ * Un file per messaggio, cifrato come i documenti sanitari (`data` = iv + authTag + ciphertext, chiave
+ * `FILE_ENCRYPTION_KEY`). Il contenuto non esce mai nelle liste: si apre da un link firmato che scade
+ * (`chat/allegati-chat.ts`). Cancellare il messaggio (morbido) lo nasconde insieme al suo allegato.
+ */
+model MessageAttachment {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  fileName  String   @map("file_name")
+  mimeType  String   @map("mime_type")
+  sizeBytes Int      @map("size_bytes")
+  data      Bytes
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([messageId])
+  @@map("message_attachment")
 }
 
 // --- Area sanitaria (milestone 7) ---

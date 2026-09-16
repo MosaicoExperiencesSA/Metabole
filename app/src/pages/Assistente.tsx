@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { CancellaMessaggio, useCancellaMessaggio } from '../components/cancellaMessaggio';
 import { useSearchParams } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
+import type { AllegatoDaInviare, AllegatoRicevuto } from '../lib/allegati';
+import { AllegatiInBolla, AllegatoInAttesa, BottoneAllega, useAllegatiPossibili } from '../components/Allegati';
 import { oraBreve, separatoreGiorno } from '../lib/oraChat';
 import AppHeader from '../components/AppHeader';
 import { TestoConGrassetto } from '../components/TestoConGrassetto';
@@ -30,6 +32,8 @@ interface Msg {
   senderUserId?: string | null;
   body: string;
   sentAt: string;
+  /** Il file allegato (16/9), col link già firmato dal server. */
+  allegati?: AllegatoRicevuto[];
 }
 
 const POLL_MS = 12_000;
@@ -60,6 +64,12 @@ export default function Assistente() {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
+  /** ⛔ L'allegato (16/9): con la coach e la nutrizionista, non con Gaia. */
+  const puoAllegare = useAllegatiPossibili();
+  const conAllegati = who !== 'ai' && thread?.counterpart !== 'ai';
+  const [allegato, setAllegato] = useState<AllegatoDaInviare | null>(null);
+  const [errore, setErrore] = useState<string | null>(null);
+  useEffect(() => { setAllegato(null); setErrore(null); }, [thread?.id]);
   // L'apertura del dialogo scrive un messaggio: va fatta UNA volta sola. Senza questa guardia
   // un secondo render (o il ritorno alla pagina) farebbe ripetere a Gaia la stessa domanda.
   const intentoAvviato = useRef(false);
@@ -130,14 +140,25 @@ export default function Assistente() {
 
   async function send() {
     const body = text.trim();
-    if (!body || !thread || sending) return;
+    const file = conAllegati ? allegato : null;
+    if ((!body && !file) || !thread || sending) return;
     setText('');
     setSending(true);
+    setErrore(null);
     try {
-      const res = await api<{ message: Msg; aiReply?: Msg }>(`/threads/${thread.id}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
+      const res = await api<{ message: Msg; aiReply?: Msg }>(`/threads/${thread.id}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...(body ? { body } : {}),
+          ...(file ? { allegato: { nome: file.nome, tipo: file.tipo, base64: file.base64 } } : {}),
+        }),
+      });
+      setAllegato(null);
       setMessages((m) => [...m, res.message, ...(res.aiReply ? [res.aiReply] : [])]);
-    } catch {
-      /* ignora */
+    } catch (e) {
+      // Il testo torna nel campo e, se c'era un file, si dice perché non è partito.
+      setText(body);
+      if (file) setErrore(e instanceof ApiError ? e.message : 'Il file non è partito: riprova.');
     } finally {
       setSending(false);
     }
@@ -174,7 +195,8 @@ export default function Assistente() {
                   >
                     <CancellaMessaggio messaggio={m} gancio={canc} />
                     {/* ⚠️ Il grassetto si DISEGNA (25/8): vedi il riquadro in `TestoConGrassetto`. */}
-                    <TestoConGrassetto testo={m.body} />
+                    <AllegatiInBolla allegati={m.allegati} />
+                    {m.body && <TestoConGrassetto testo={m.body} />}
                     {/* L'ora dentro la bolla, in fondo: il giorno lo dice il separatore sopra. */}
                     <span className="bubble-ora">{oraBreve(m.sentAt)}</span>
                   </div>
@@ -184,7 +206,18 @@ export default function Assistente() {
             <div ref={endRef} />
           </div>
 
+          {allegato && conAllegati && <AllegatoInAttesa allegato={allegato} onTogli={() => setAllegato(null)} />}
+          {errore && <div style={{ color: '#b3261e', fontSize: 12, margin: '4px 0' }}>{errore}</div>}
           <div className="chat-input">
+            {conAllegati && puoAllegare && (
+              <BottoneAllega
+                className="btn ghost"
+                style={{ width: 'auto', padding: '10px 11px' }}
+                disabilitato={sending}
+                onPronto={(a) => { setErrore(null); setAllegato(a); }}
+                onErrore={setErrore}
+              />
+            )}
             <input
               className="input"
               style={{ flex: 1, borderRadius: 22 }}

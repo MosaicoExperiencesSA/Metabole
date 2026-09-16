@@ -264,11 +264,22 @@ describe('ChatService', () => {
     await expect(service.listMessages(client, 't1')).rejects.toThrow(ForbiddenException);
   });
 
-  it('la coach entra solo nei thread coach delle proprie clienti', async () => {
+  /**
+   * ⛔ **Cambiato il 16/9** (Simone: *«rendiamo leggibile la chat del nutrizionista anche alle
+   * coach»*). Prima qui il thread della nutrizionista era vietato alla coach; adesso lo LEGGE, e
+   * continua a NON poterci scrivere.
+   */
+  it('la coach entra nei thread delle proprie clienti: scrive in quello coach, LEGGE (e basta) quello della nutrizionista', async () => {
     prisma.chatThread.findUnique.mockResolvedValue({ id: 't1', clientId: 'client-1', counterpart: 'coach' });
     await expect(service.listMessages(coach, 't1')).resolves.toBeDefined();
-    // thread nutrizionista → vietato
+    // thread nutrizionista → si legge…
     prisma.chatThread.findUnique.mockResolvedValue({ id: 't2', clientId: 'client-1', counterpart: 'nutritionist' });
+    await expect(service.listMessages(coach, 't2')).resolves.toBeDefined();
+    // …ma non si scrive
+    await expect(service.postMessage(coach, 't2', 'ciao')).rejects.toThrow(ForbiddenException);
+    expect(prisma.message.create).not.toHaveBeenCalled();
+    // …e non si legge quello della nutrizionista di una cliente non sua
+    prisma.clientProfile.findUnique.mockResolvedValueOnce({ assignedCoachId: 'staff-ALTRO', assignedNutritionistId: 'staff-n' });
     await expect(service.listMessages(coach, 't2')).rejects.toThrow(ForbiddenException);
     // cliente non sua → vietato
     prisma.chatThread.findUnique.mockResolvedValue({ id: 't3', clientId: 'client-1', counterpart: 'coach' });
@@ -703,7 +714,8 @@ describe('ChatService', () => {
         { id: 't-nutri', counterpart: 'nutritionist', lastMessageAt: null, _count: { messages: 1 } },
       ]);
       const perCoach = await service.threadsDiUnCliente(coach, 'client-1');
-      expect(perCoach.map((t) => t.counterpart)).toEqual(['ai', 'coach']);
+      // Dal 16/9 la coach legge anche la chat con la nutrizionista.
+      expect(perCoach.map((t) => t.counterpart)).toEqual(['ai', 'coach', 'nutritionist']);
       const perNutri = await service.threadsDiUnCliente(nutri, 'client-1');
       expect(perNutri.map((t) => t.counterpart)).toEqual(['ai', 'nutritionist']);
       expect(perCoach[0].messageCount).toBe(4);

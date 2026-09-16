@@ -7375,4 +7375,52 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'calorie partono dalla tendenza: alla cliente può dire «sostenibile» un ritmo che nel piatto non lo è.',
   },
 
+  {
+    chiave: 'allegati-nelle-chat',
+    fatta: true,
+    categoria: SIMONE,
+    ordine: 2,
+    nata: '2026-09-16T12:00',
+    titolo: '▶️ Nelle chat con coach e nutrizionista si allega un file (foto, PDF, Word, Excel, testo)',
+    dettaglio:
+      'Simone, 16/9: *«nelle chat tutte, anche quella del Nutrizionista, mettiamo la possibilità di allegare un file, immagine, ecc»*.\n\n'
+      + '✅ **FATTO (16/9)**: un file per messaggio, fino a 8 MB, cifrato nel database come i documenti sanitari '
+      + '(tabella nuova `message_attachment`, **migrazione** `20260916100000_allegati_chat`). Le foto si vedono nella '
+      + 'bolla, gli altri file si aprono da un link firmato che scade (`/api/v1/chat-files/:id`), ricontrollando '
+      + 'l\'accesso a ogni apertura. App della cliente, app di coach e nutrizioniste, backoffice (Chat e scheda). '
+      + '⚠️ **Non su Gaia né su Vera**: non leggono i file.',
+  },
+
+  {
+    chiave: 'allegati-iphone-nativa-2-3',
+    categoria: SIMONE,
+    ordine: 2,
+    nata: '2026-09-16T12:00',
+    titolo: 'Su iPhone la graffetta compare solo dalla build nativa 2.3',
+    dettaglio:
+      'Il campo file di iOS propone «Scatta foto»: senza `NSCameraUsageDescription` il sistema chiude l\'app. '
+      + 'Le due dichiarazioni (fotocamera e foto) le mette `scripts/install-ios.mjs` dal 16/9, ma arrivano ai telefoni '
+      + 'solo con una build nativa nuova. Finché non esce, su iPhone il pulsante resta nascosto '
+      + '(`IOS_ALLEGATI_DALLA_VERSIONE = \'2.3\'` in `app/src/lib/allegati.ts`).\n\n'
+      + '▶️ Da fare: build iOS **2.3** con `install-ios.mjs`. ⚠️ Se la prossima build ha un altro numero, va cambiato '
+      + 'anche quella costante, o su iPhone la graffetta non compare mai.',
+  },
+
+  {
+    chiave: 'coach-legge-chat-nutrizionista',
+    fatta: true,
+    categoria: SIMONE,
+    ordine: 2,
+    nata: '2026-09-16T12:00',
+    titolo: '▶️ La coach legge (e non scrive) la chat fra la sua cliente e la nutrizionista',
+    dettaglio:
+      'Simone, 16/9: *«rendiamo leggibile la chat del nutrizionista anche alle coach»*.\n\n'
+      + '✅ **FATTO (16/9)**: stessa regola del thread con Gaia — la coach della cliente e chi ne risponde in rete, '
+      + '**solo in lettura** (`assertThreadAccess`). Nel backoffice compare da sé fra le conversazioni in scheda '
+      + '(con la riga «la leggi e non ci scrivi»); nell\'app della coach c\'è il pulsante «Chat nutrizionista» nella '
+      + 'scheda cliente, che apre la conversazione senza campo per scrivere. Ogni lettura resta nell\'audit.\n\n'
+      + '⚠️ Va detto: `CLAUDE.md` scrive *«dati sanitari accessibili solo a cliente e suo nutrizionista»*. Con questa '
+      + 'scelta la coach legge anche quello che la cliente scrive alla nutrizionista, allegati compresi.',
+  },
+
 ];

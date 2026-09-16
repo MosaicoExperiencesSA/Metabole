@@ -18,6 +18,41 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-16
+
+- `[Sviluppo]` 📎 **Nelle chat con coach e nutrizionista si allega un file.** Richiesta di Simone del
+  16/9: *«nelle chat tutte, anche quella del Nutrizionista, mettiamo la possibilità di allegare un
+  file, immagine, ecc»*. Un file per messaggio, fino a **8 MB** (il file viaggia in base64 nel JSON,
+  e il corpo è limitato a 12 MB): foto, PDF, Word, Excel, testo — un **elenco di ammessi**, perché il
+  file si riapre dal nostro dominio e un HTML o un SVG diventerebbero una pagina col nostro indirizzo;
+  e un'estensione che non è del tipo dichiarato si sostituisce («ricetta.exe» dichiarato Word esce
+  `.doc`). Cifrato come i documenti sanitari (`FILE_ENCRYPTION_KEY`), in una tabella nuova
+  `message_attachment` — **migrazione** `20260916100000_allegati_chat`, additiva. Il contenuto non esce
+  mai nelle liste: si apre da un **link firmato** che scade a finestre di mezz'ora (stabile fra un
+  giro e l'altro della chat, così le foto non si riscaricano ogni 12 secondi), servito da
+  `GET /api/v1/chat-files/:id` con `Cross-Origin-Resource-Policy: cross-origin` (helmet mette
+  `same-origin` e le foto non si sarebbero viste) e **ricontrollando l'accesso a ogni apertura** con
+  lo stesso cancello delle conversazioni; ogni apertura dello staff va nell'audit. Le foto le
+  rimpicciolisce il telefono (2000 px). App della cliente (foglio chat e pagina chat), app di coach e
+  nutrizioniste, backoffice (pagina Chat e conversazioni in scheda). ⚠️ **Non su Gaia né su Vera**:
+  non leggono i file, e il server rifiuta. ⚠️ **iPhone**: il campo file propone «Scatta foto», e senza
+  `NSCameraUsageDescription` il sistema chiude l'app — le due dichiarazioni le mette ora
+  `install-ios.mjs`, ma arrivano solo con una build nativa: fino alla **2.3** su iPhone la graffetta
+  resta nascosta. ⛔ **La revisione avversariale ne ha trovate sedici**, e la più grave era nell'app
+  dello staff: toccando la notifica di un'altra cliente la schermata non si smonta (stessa rotta), e
+  il referto scelto per una partiva alla successiva. Corrette anche: doppio invio con la tastiera,
+  cambio di conversazione durante un invio lungo, foto che spostavano la chat, riassunti e anteprime
+  vuoti sui messaggi fatti solo di un file, rate limit sulla rotta dei file, chiave dei link derivata
+  dal segreto, utenti sospesi.
+- `[Sviluppo]` 👁️ **La coach legge la chat fra la sua cliente e la nutrizionista.** Simone, 16/9:
+  *«rendiamo leggibile la chat del nutrizionista anche alle coach»*. Stessa regola del thread con
+  Gaia: la coach assegnata e chi ne risponde in rete, **solo in lettura** — scriverci farebbe arrivare
+  alla cliente un messaggio che sembra della nutrizionista. In scheda (backoffice) compare da sé con la
+  riga «la leggi e non ci scrivi»; nell'app della coach c'è «Chat nutrizionista» nella scheda cliente,
+  che apre la conversazione senza campo. ⚠️ Due prove dicevano il contrario (la regola di prima) e sono
+  state riscritte. ⚠️ Va detto: `CLAUDE.md` scrive *«dati sanitari accessibili solo a cliente e suo
+  nutrizionista»* — da oggi la coach legge anche quello, allegati compresi.
+
 ## 2026-09-15
 
 - `[Sviluppo]` 🔔 **Se la cliente riscrive dall'app l'obiettivo deciso dallo staff, chi l'aveva deciso lo sa.**

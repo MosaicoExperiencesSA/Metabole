@@ -1,0 +1,54 @@
+Allegati nelle chat con coach e nutrizionista, e la coach legge la chat della nutrizionista
+
+Richieste di Simone del 16/9: allegare un file nelle chat (anche quella della nutrizionista) e rendere la chat della nutrizionista leggibile alle coach.
+
+Allegati
+- Un file per messaggio, max 8 MB: foto, PDF, Word, Excel, testo. Estensione allineata al tipo. Niente su Gaia (400).
+- Cifrati come i documenti sanitari (FILE_ENCRYPTION_KEY) nella tabella nuova message_attachment. MIGRAZIONE 20260916100000_allegati_chat, additiva, la applica Render al deploy.
+- Il contenuto non esce nelle liste: link firmato a finestre di 30 minuti, GET /api/v1/chat-files/:id pubblica ma con firma, accesso ricontrollato a ogni apertura, audit per lo staff, CORP cross-origin, nosniff, niente rate limit.
+- App: foglio chat e pagina chat della cliente, chat di coach e nutrizioniste (Allegati.tsx + lib/allegati.ts). Foto rimpicciolite a 2000 px. Su iPhone la graffetta compare solo dalla nativa 2.3; permessi fotocamera e foto aggiunti a scripts/install-ios.mjs.
+- Backoffice: pagina Chat e conversazioni in scheda cliente.
+- Riassunti e anteprime in dashboard dicono il nome del file quando il messaggio e solo un file.
+- Revisione avversariale: 16 rilievi corretti (file che passava alla cliente successiva nella chat dello staff, doppio invio, cambio conversazione durante l invio, foto che spostavano la chat, chiave dei link derivata, utenti sospesi).
+
+La coach legge la chat della nutrizionista
+- assertThreadAccess: coach della cliente e chi ne risponde in rete, solo lettura. Due prove della regola vecchia riscritte.
+- Backoffice: il thread compare in scheda con la riga la leggi e non ci scrivi.
+- App coach: pulsante Chat nutrizionista nella scheda cliente, conversazione senza campo per scrivere.
+
+Lavori: spuntate allegati-nelle-chat e coach-legge-chat-nutrizionista; aperta allegati-iphone-nativa-2-3.
+
+File:
+backend/prisma/schema.prisma
+backend/prisma/migrations/20260916100000_allegati_chat/migration.sql (nuovo)
+backend/src/chat/allegati-chat.ts (nuovo)
+backend/src/chat/allegati-chat.spec.ts (nuovo)
+backend/src/chat/allegati-chat.service.ts (nuovo)
+backend/src/chat/allegati-chat.service.spec.ts (nuovo)
+backend/src/chat/chat.controller.ts
+backend/src/chat/chat.module.ts
+backend/src/chat/chat.service.ts
+backend/src/chat/chat.service.spec.ts
+backend/src/chat/conversation-summary.service.ts
+backend/src/dashboard/dashboard.service.ts
+backend/src/lavori/voci-iniziali.ts
+app/src/lib/allegati.ts (nuovo)
+app/src/lib/allegati.spec.ts (nuovo)
+app/src/components/Allegati.tsx (nuovo)
+app/src/components/ChatSheet.tsx
+app/src/pages/Assistente.tsx
+app/src/staff/coach/CoachChat.tsx
+app/src/staff/coach/CoachClienteDetail.tsx
+backoffice/src/lib/allegati.ts (nuovo)
+backoffice/src/lib/allegati.spec.ts (nuovo)
+backoffice/src/components/Allegati.tsx (nuovo)
+backoffice/src/components/cancellaMessaggio.tsx
+backoffice/src/pages/Chat.tsx
+backoffice/src/pages/ClientDetail.tsx
+scripts/install-ios.mjs
+progetto/REGISTRO.md
+HANDOFF_Pubblicazione_App_2026-09-16.md (nuovo)
+app/package.json (versione 2.2.6, la scrive ota-release)
+backend/ota-bundles/metabole-2.2.6.zip (nuovo)
+
+Una migrazione (Render al deploy). Nessuna variabile d ambiente obbligatoria nuova (facoltative: CHAT_FILES_SECRET, PUBLIC_API_URL). Nessuna dipendenza nuova. L app va pubblicata con OTA (Android subito; iPhone con la nativa 2.3).

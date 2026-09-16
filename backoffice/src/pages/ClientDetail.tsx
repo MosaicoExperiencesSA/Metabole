@@ -17,6 +17,8 @@ import { useTaxonomy } from '../lib/taxonomy';
 import { TabellaScorrevole } from '../components/tabella-scorrevole';
 import { agganciaInFondo, portaInFondo } from '../lib/scorri-in-fondo';
 import { TestoConGrassetto } from '../components/TestoConGrassetto';
+import { AllegatiInBolla, AllegatoInAttesa, BottoneAllega } from '../components/Allegati';
+import type { AllegatoDaInviare, AllegatoRicevuto } from '../lib/allegati';
 import { giornoDellaRiga, leggiFrase, serveChiedere, type DomandaInSospeso } from '../lib/pesataDaConfermare';
 
 interface Detail {
@@ -3903,6 +3905,8 @@ interface MsgRow {
   body: string;
   sentAt: string;
   meta?: { sost?: { passo?: string }; esitoSostituzione?: string } | null;
+  /** Il file allegato (16/9), col link già firmato dal server. */
+  allegati?: AllegatoRicevuto[];
 }
 interface SostituzioneRow {
   /** `piatto` = ha cambiato tutto il piatto · `ingrediente` = solo un alimento dentro il piatto. */
@@ -4041,6 +4045,10 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
   /** La risposta che si sta scrivendo alla cliente, dal thread aperto (11/8). */
   const [risposta, setRisposta] = useState('');
   const [invio, setInvio] = useState(false);
+  /** ⛔ L'allegato della risposta (Simone, 16/9). Si toglie cambiando conversazione. */
+  const [allegato, setAllegato] = useState<AllegatoDaInviare | null>(null);
+  const selAperta = useRef<string | null>(null);
+  selAperta.current = sel;
   /**
    * Il messaggio in attesa di conferma per la cancellazione, e quello in corso.
    *
@@ -4148,16 +4156,27 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
    */
   async function inviaRisposta() {
     const testo = risposta.trim();
-    if (!sel || !testo) return;
+    // ⚠️ `invio`: il pulsante è spento durante l'invio, Ctrl/⌘+Invio no.
+    if (!sel || invio || (!testo && !allegato)) return;
+    const dove = sel;
     setInvio(true);
     setErr(null);
     try {
-      await api(`/threads/${sel}/messages`, { method: 'POST', body: JSON.stringify({ body: testo }) });
+      await api(`/threads/${dove}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...(testo ? { body: testo } : {}),
+          ...(allegato ? { allegato: { nome: allegato.nome, tipo: allegato.tipo, base64: allegato.base64 } } : {}),
+        }),
+      });
+      // ⚠️ Se nel frattempo si è aperta un'altra conversazione, non si tocca quella (revisione, 16/9).
+      if (selAperta.current !== dove) return;
       setRisposta('');
+      setAllegato(null);
       // Si ricarica invece di aggiungere la bolla a mano: così quello che si legge è quello che è
       // stato salvato davvero, e non una copia ottimistica che potrebbe non combaciare.
-      const ms = await api<MsgRow[]>(`/threads/${sel}/messages`);
-      setMessaggi(ms);
+      const ms = await api<MsgRow[]>(`/threads/${dove}/messages`);
+      if (selAperta.current === dove) setMessaggi(ms);
     } catch (e) {
       setErr(
         e instanceof ApiError && e.status === 403
@@ -4192,8 +4211,9 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
     setCaricaMsg(true);
     setErr(null);
     // Cambiando conversazione la bozza non si porta dietro: il testo scritto per la coach non deve
-    // ritrovarsi nel campo della nutrizionista.
+    // ritrovarsi nel campo della nutrizionista. Lo stesso per il file allegato (16/9).
     setRisposta('');
+    setAllegato(null);
     api<MsgRow[]>(`/threads/${sel}/messages`)
       .then((ms) => { if (vivo) setMessaggi(ms); })
       .catch((e) => { if (vivo) setErr(e instanceof ApiError ? e.message : 'Conversazione non leggibile.'); })
@@ -4487,7 +4507,8 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
                         componente, coach e nutrizioniste leggevano «Hai qualche **allergia**
                         alimentare?» con gli asterischi in mezzo — la stessa frase per cui la voce
                         del 22/8 esisteva, solo dall'altra parte del vetro. */}
-                    <TestoConGrassetto testo={m.body} />
+                    <AllegatiInBolla allegati={m.allegati} />
+                    {m.body && <TestoConGrassetto testo={m.body} />}
                     <div className="muted" style={{ fontSize: 10.5, marginTop: 3 }}>
                       {m.senderRole === 'ai' ? 'Gaia' : dellaCliente ? 'cliente' : m.senderRole} · {oraBreve(m.sentAt)}
                       {m.meta?.esitoSostituzione === 'applicata' && ' · cambio applicato al menu'}
@@ -4530,6 +4551,18 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
             const mioRuolo =
               (thread.counterpart === 'coach' && (me?.role === 'coach' || me?.role === 'coach_coordinator')) ||
               (thread.counterpart === 'nutritionist' && (me?.role === 'nutritionist' || me?.role === 'head_nutritionist'));
+            /**
+             * ⛔ La coach LEGGE la chat con la nutrizionista (Simone, 16/9) e non ci scrive: lo si
+             * dice, come per Gaia, invece di lasciare la conversazione senza campo e senza perché.
+             */
+            if (!mioRuolo && thread.counterpart === 'nutritionist' && (me?.role === 'coach' || me?.role === 'coach_coordinator')) {
+              return (
+                <p className="hint" style={{ marginTop: 10, marginBottom: 0 }}>
+                  <i className="ti ti-eye" /> Questa è la conversazione con la nutrizionista: la leggi e non ci
+                  scrivi. Per parlare con la cliente usa la conversazione con la coach.
+                </p>
+              );
+            }
             if (!mioRuolo) return null;
             return (
               <div style={{ marginTop: 10 }}>
@@ -4547,11 +4580,18 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
                     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void inviaRisposta();
                   }}
                 />
+                {allegato && <AllegatoInAttesa allegato={allegato} onTogli={() => setAllegato(null)} />}
                 <div className="spread" style={{ marginTop: 6, alignItems: 'center' }}>
-                  <span className="muted" style={{ fontSize: 11.5 }}>
+                  <span className="muted" style={{ fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <BottoneAllega
+                      className="btn ghost sm"
+                      disabilitato={invio}
+                      onPronto={(a) => { setErr(null); setAllegato(a); }}
+                      onErrore={setErr}
+                    />
                     Le arriva una notifica. Ctrl/⌘+Invio per inviare.
                   </span>
-                  <button className="btn sm" disabled={invio || !risposta.trim()} onClick={() => void inviaRisposta()}>
+                  <button className="btn sm" disabled={invio || (!risposta.trim() && !allegato)} onClick={() => void inviaRisposta()}>
                     <i className="ti ti-send" /> {invio ? 'Invio…' : 'Invia'}
                   </button>
                 </div>
