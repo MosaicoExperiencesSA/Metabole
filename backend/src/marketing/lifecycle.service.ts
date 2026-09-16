@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { urlApiPubblica } from '../common/url-api-pubblica';
 import { istantePiuGiorni, oggiPiu } from '../common/date-only';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -177,8 +178,12 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
     return this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
   }
 
+  /**
+   * L'indirizzo pubblico delle API **con** `/api/v1` (16/9): prima mancava, e il link di
+   * disiscrizione con un clic puntava a una rotta che non esiste. Vedi `common/url-api-pubblica.ts`.
+   */
   private apiUrl(): string {
-    return this.config.get<string>('PUBLIC_API_URL') ?? 'https://metabole-backend.onrender.com';
+    return urlApiPubblica(this.config.get<string>('PUBLIC_API_URL'));
   }
 
   /**

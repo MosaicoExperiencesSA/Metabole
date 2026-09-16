@@ -34,6 +34,7 @@ import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali
 import { AgenteAlimentiService } from '../nutrient-facts/agente-alimenti.service';
 import { AgentePastiLeggeriService } from '../catalog/agente-pasti-leggeri.service';
 import { CoachDiRiservaService } from '../coach-di-riserva/coach-di-riserva.service';
+import { InvitoGaiaService } from '../marketing/invito-gaia/invito-gaia.service';
 
 /**
  * Endpoint per Render Cron Jobs: il motore gira ogni giorno e le notifiche
@@ -76,6 +77,8 @@ export class CronController {
     private readonly agenteAlimenti: AgenteAlimentiService,
     /** La coach di riserva: ripesca chi è rimasta senza coach da qualunque porta (4/9). */
     private readonly coachDiRiserva: CoachDiRiservaService,
+    /** L'invito a Gaia (16/9): 100 lead al giorno e il promemoria dopo 15 giorni. */
+    private readonly invitoGaia: InvitoGaiaService,
   ) {}
 
   private assertSecret(secret?: string): void {
@@ -299,6 +302,19 @@ export class CronController {
   async digiunoPush(@Headers('x-cron-secret') secret?: string) {
     this.assertSecret(secret);
     return this.notifications.digiunoPushTick();
+  }
+
+  /**
+   * ✨ **INVITO A GAIA** (16/9) — ogni quarto d'ora. Il servizio decide da sé se è acceso, se è
+   * nell'orario e quanti ne mancano a oggi: questo tic non fa altro che chiamarlo, UNA volta per le
+   * due istanze di Render (un timer nel processo avrebbe fatto due giri).
+   */
+  @Public()
+  @HttpCode(200)
+  @Post('invito-gaia')
+  async invitoGaiaTick(@Headers('x-cron-secret') secret?: string) {
+    this.assertSecret(secret);
+    return this.invitoGaia.giro();
   }
 
   /**

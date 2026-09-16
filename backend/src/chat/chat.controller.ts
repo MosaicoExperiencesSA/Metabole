@@ -66,7 +66,9 @@ class SendMessageDto {
  */
 export function baseDellaRichiesta(req: Request): string {
   const fisso = process.env.PUBLIC_API_URL?.trim();
-  if (fisso) return fisso.replace(/\/$/, '');
+  // ⚠️ Chi ha scritto la variabile con `/api/v1` in coda (va bene per le email, vedi
+  // `common/url-api-pubblica.ts`) non deve ritrovarsi `/api/v1/api/v1` nei link degli allegati.
+  if (fisso) return fisso.replace(/\/+$/, '').replace(/\/api\/v1$/i, '');
   const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0] || req.protocol || 'https';
   const host = (req.headers['x-forwarded-host'] as string | undefined) || req.headers.host || 'localhost';
   return `${proto}://${host}`;

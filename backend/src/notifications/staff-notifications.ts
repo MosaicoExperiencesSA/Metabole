@@ -73,6 +73,11 @@ export const STAFF_NOTIFICATION_TYPES: StaffNotifType[] = [
    * capi) **e a chi l'aveva deciso**, di solito l'admin — per questo c'è anche `admin`.
    */
   { key: 'obiettivo_riscritto_dalla_cliente', label: 'Obiettivo cambiato dalla cliente', description: 'Una cliente ha cambiato dall\'app l\'obiettivo che lo staff aveva deciso.', roles: [...CARE, 'admin'] },
+  /**
+   * Invito a Gaia (16/9): la lead invitata è entrata nell'app. Alla sua coach, o — se non ne ha —
+   * alla manager delle coach (e agli admin se non c'è). Vedi `marketing/invito-gaia/entrata.ts`.
+   */
+  { key: 'invito_gaia_entrata', label: 'Lead entrata con l’invito a Gaia', description: 'Una lead che ha ricevuto l’email di invito a Gaia è entrata nell’app.', roles: ['coach', 'sales', 'admin'] },
   // --- Responsabile coach (assegnazioni lead) ---
   { key: 'lead_accepted', label: 'Lead accettato', description: 'Una coach ha accettato un lead che le hai assegnato.', roles: RESP },
   { key: 'lead_rejected', label: 'Lead rifiutato', description: 'Una coach ha rifiutato un lead: va riassegnato.', roles: RESP },

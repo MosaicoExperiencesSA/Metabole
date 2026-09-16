@@ -158,6 +158,20 @@ services:
     envVars:
       - fromGroup: metabole-shared
 
+  # ✨ INVITO A GAIA (16/9): ogni quarto d'ora. Il servizio decide se è acceso (pannello in Marketing),
+  # se è nell'orario e quanti inviti mancano a oggi. Sta qui e non in un timer del backend perché le
+  # istanze sono due: due timer = due giri.
+  - type: cron
+    name: metabole-cron-invito-gaia
+    runtime: node
+    region: frankfurt
+    schedule: '*/15 * * * *'
+    rootDir: backend
+    buildCommand: 'echo cron pronto'
+    startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://metabole-backend.onrender.com/api/v1/internal/cron/invito-gaia'
+    envVars:
+      - fromGroup: metabole-shared
+
   # ⛔ LE PUSH DEL DIGIUNO INTERMITTENTE: ogni DIECI MINUTI, e non è negoziabile.
   # I sei momenti della giornata (apertura e chiusura della finestra, i due preavvisi a un'ora, le
   # due metaboliche) cadono a ore qualsiasi: il giro notturno non li può mandare. La finestra che il

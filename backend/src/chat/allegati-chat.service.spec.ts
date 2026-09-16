@@ -288,6 +288,9 @@ describe('⛔ i controller', () => {
       expect(baseDellaRichiesta({ headers: { host: 'localhost:3000' }, protocol: 'http' } as never)).toBe('http://localhost:3000');
       process.env.PUBLIC_API_URL = 'https://api.metabole.eu/';
       expect(baseDellaRichiesta({ headers: { 'x-forwarded-host': 'evil.example' }, protocol: 'http' } as never)).toBe('https://api.metabole.eu');
+      // con il prefisso già scritto nella variabile (16/9): non si raddoppia
+      process.env.PUBLIC_API_URL = 'https://api.metabole.eu/api/v1/';
+      expect(baseDellaRichiesta({ headers: {}, protocol: 'http' } as never)).toBe('https://api.metabole.eu');
     } finally {
       if (prima === undefined) delete process.env.PUBLIC_API_URL; else process.env.PUBLIC_API_URL = prima;
     }

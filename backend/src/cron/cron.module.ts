@@ -18,10 +18,11 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { ReportsModule } from '../reports/reports.module';
 import { SignalsModule } from '../signals/signals.module';
 import { ProfileModule } from '../profile/profile.module';
+import { MarketingModule } from '../marketing/marketing.module';
 import { CronController } from './cron.controller';
 
 @Module({
-  imports: [CoachDiRiservaModule, EngineModule, EngineRulesModule, NotificationsModule, CommerceModule, ReportsModule, AlertsModule, ChatModule, SignalsModule, HealthAreaModule, AgentsModule, CoachTasksModule, MonitoringModule, PauseModule, PrivacyModule, VeraModule, NutrientFactsModule, ProfileModule, CatalogModule],
+  imports: [CoachDiRiservaModule, EngineModule, EngineRulesModule, NotificationsModule, CommerceModule, ReportsModule, AlertsModule, ChatModule, SignalsModule, HealthAreaModule, AgentsModule, CoachTasksModule, MonitoringModule, PauseModule, PrivacyModule, VeraModule, NutrientFactsModule, ProfileModule, CatalogModule, MarketingModule],
   controllers: [CronController],
 })
 export class CronModule {}

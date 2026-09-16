@@ -10,6 +10,7 @@ import { ROLES } from '../src/common/roles';
 import { DEFAULT_PDF_TEMPLATES } from '../src/pdf/pdf.defaults';
 import { SUGGESTED_PRESETS } from '../src/engine-rules/engine-rules.presets';
 import { MARKETING_EMAIL_TEMPLATES } from './seed_email_marketing';
+import { EMAIL_INVITO_GAIA } from '../src/marketing/invito-gaia/email-gaia';
 import { seedKetoCatalog } from './seed_keto';
 import { seedValoriNutrizionali } from './seed-valori-nutrizionali';
 import { deriveKey, encryptBuffer } from '../src/health-area/crypto.util';
@@ -728,6 +729,44 @@ const CONFIG_PARAMS: SeedParam[] = [
     type: 'string',
     description: 'Link alla scheda Google Play, usato dai pulsanti "Scarica" nelle email.',
   },
+  // Invito a provare Gaia (16/9): si gestiscono dal pannello in Marketing, qui ci sono i valori di
+  // partenza. ⛔ Nasce SPENTO: il primo invio lo decide qualcuno, non il deploy.
+  {
+    key: 'gaia_invito_attivo',
+    value: 'false',
+    type: 'boolean',
+    description: 'Invito a Gaia: se acceso, ogni giorno parte l\'email di invito ai lead in «Nuovo contatto» (tranne chi ha detto no) e dopo N giorni il promemoria.',
+  },
+  {
+    key: 'gaia_invito_al_giorno',
+    value: '100',
+    type: 'number',
+    description: 'Invito a Gaia: quante email di invito al giorno (massimo 1000). I promemoria non contano in questo numero.',
+  },
+  {
+    key: 'gaia_invito_promemoria_giorni',
+    value: '15',
+    type: 'number',
+    description: 'Invito a Gaia: dopo quanti giorni dall\'invito parte il promemoria a chi non è ancora entrata (uno solo).',
+  },
+  {
+    key: 'gaia_invito_ora_da',
+    value: '9',
+    type: 'number',
+    description: 'Invito a Gaia: da che ora (Roma) si possono mandare le email.',
+  },
+  {
+    key: 'gaia_invito_ora_a',
+    value: '20',
+    type: 'number',
+    description: 'Invito a Gaia: fino a che ora (Roma, esclusa) si possono mandare le email.',
+  },
+  {
+    key: 'gaia_invito_link_ore',
+    value: '48',
+    type: 'number',
+    description: 'Invito a Gaia: per quante ore vale il link per scegliere la password, contate dal clic sul pulsante dell\'email.',
+  },
   {
     key: 'lead_credentials_link_days',
     value: '7',
@@ -774,7 +813,7 @@ const EMAIL_TEMPLATES = [
 async function seedEmailTemplates(): Promise<void> {
   // Transazionali + ciclo di vita/marketing (45). Idempotente: crea se assente,
   // aggiorna solo il nome (subject/body restano quelli eventualmente editati dall'admin).
-  for (const t of [...EMAIL_TEMPLATES, ...MARKETING_EMAIL_TEMPLATES]) {
+  for (const t of [...EMAIL_TEMPLATES, ...MARKETING_EMAIL_TEMPLATES, ...EMAIL_INVITO_GAIA]) {
     await prisma.emailTemplate.upsert({
       where: { key: t.key },
       create: t,

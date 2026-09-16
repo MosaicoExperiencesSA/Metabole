@@ -8,6 +8,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { urlApiPubblica } from '../common/url-api-pubblica';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
@@ -74,8 +75,12 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** URL pubblico del BACKEND (per la POST one-click di Gmail/Yahoo agli header). */
+  /**
+   * L'indirizzo pubblico delle API **con** `/api/v1` (16/9): prima mancava, e il link di
+   * disiscrizione con un clic puntava a una rotta che non esiste. Vedi `common/url-api-pubblica.ts`.
+   */
   private apiUrl(): string {
-    return this.config.get<string>('PUBLIC_API_URL') ?? 'https://metabole-backend.onrender.com';
+    return urlApiPubblica(this.config.get<string>('PUBLIC_API_URL'));
   }
 
   /** Link personale alla pagina preferenze/disiscrizione (token firmato, senza login). */
@@ -335,6 +340,15 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
       where, select: { id: true, name: true, email: true, stage: true, tags: true }, take: 12, orderBy: { createdAt: 'desc' },
     });
     return { total, sample };
+  }
+
+  /**
+   * Gli stessi filtri di consenso delle campagne, per chi manda email di marketing da fuori
+   * (l'invito a Gaia): opt-out per email, preferenze della cliente, «no» esplicito e
+   * `marketing_require_consent`. Una regola sola per tutte le email promozionali.
+   */
+  filtraConsensi<T extends Recipient>(records: T[]): Promise<T[]> {
+    return this.filterConsent(records) as Promise<T[]>;
   }
 
   private async filterConsent(records: Recipient[]): Promise<Recipient[]> {

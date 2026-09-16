@@ -31,6 +31,7 @@ import { join } from 'path';
 import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
 import { ProfileService } from '../profile/profile.service';
 import { CronController } from './cron.controller';
+import { InvitoGaiaService } from '../marketing/invito-gaia/invito-gaia.service';
 
 /**
  * Il cron notturno è l'unica cosa che gira senza nessuno a guardare: se salta, di giorno non
@@ -52,6 +53,7 @@ type EsitoCron = Record<string, unknown> & {
 };
 
 describe('CronController (endpoint per Render Cron)', () => {
+  const invitoGaia = { giro: jest.fn().mockResolvedValue({ inviti: 0, promemoria: 0, nota: 'spento' }) };
   let controller: CronController;
   let engine: { runBatch: jest.Mock };
   let notifications: { generateDailyBatch: jest.Mock; measuresNudgeTick: jest.Mock };
@@ -127,6 +129,8 @@ describe('CronController (endpoint per Render Cron)', () => {
         { provide: PauseService, useValue: { surveillanceTick: jest.fn().mockResolvedValue({ visti: 0 }) } },
         // «Percorso concluso» a +7 giorni dalla fine del piano (richiesta delle coach, 8/8).
         { provide: CrmService, useValue: { chiudiPercorsiConclusi: jest.fn().mockResolvedValue({ esaminati: 0, spostati: 0 }) } },
+        // Invito a Gaia (16/9): tic suo, ogni quarto d'ora; né il `daily` né i `reminders` lo chiamano.
+        { provide: InvitoGaiaService, useValue: invitoGaia },
         // Revoca del consenso: avvisi del giorno prima e cancellazioni scadute (richiesta dell'8/8).
         // È l'ULTIMO passo della notte, perché anonimizza un'utenza: tutto quello che riguarda ieri
         // deve essere già stato fatto quando i dati esistevano ancora.
@@ -330,6 +334,17 @@ describe('CronController (endpoint per Render Cron)', () => {
     expect(rotte.length).toBeGreaterThanOrEqual(5);
     const senzaCron = rotte.filter((r) => !yaml.includes(`/internal/cron/${r}`));
     expect(senzaCron).toEqual([]);
+  });
+
+  it('✨ l invito a Gaia ha il suo tic, pubblico col segreto, e non gira né di notte né coi reminders', async () => {
+    invitoGaia.giro.mockClear();
+    await controller.daily('segreto-cron');
+    await controller.reminders('segreto-cron');
+    expect(invitoGaia.giro).not.toHaveBeenCalled();
+    await expect(controller.invitoGaiaTick(undefined)).rejects.toThrow(ForbiddenException);
+    expect(await controller.invitoGaiaTick('segreto-cron')).toEqual({ inviti: 0, promemoria: 0, nota: 'spento' });
+    expect(invitoGaia.giro).toHaveBeenCalledTimes(1);
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, CronController.prototype.invitoGaiaTick)).toBe(true);
   });
 
   it('segreto sbagliato o assente → 403', async () => {

@@ -7439,4 +7439,26 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'sul primo campo vuoto. Solo app (`Checkout.tsx`, `lib/indirizzoCheckout.ts`): arriva con una **OTA**, niente migrazioni.',
   },
 
+  {
+    chiave: 'invito-gaia-100-al-giorno',
+    fatta: true,
+    categoria: SIMONE,
+    ordine: 2,
+    nata: '2026-09-16T15:00',
+    titolo: '▶️ Invito a Gaia: 100 lead al giorno da «Nuovo contatto», promemoria a 15 giorni, avviso alla coach quando entrano',
+    dettaglio:
+      'Simone, 16/9: *«un piano marketing che invii a 100 lead al giorno pescati da quelli in nuovo contatto con una mail accattivante '
+      + 'che li invita a provare Gaia… con il link per il reset password e quello per cancellarsi (va gestito), e dopo 15 giorni un '
+      + 'reminder»* e *«va mandata una notifica alla coach se fanno login dopo la mail, e se non hanno coach alla manager»*. '
+      + 'Destinatari decisi da Simone: tutti i «Nuovo contatto» **tranne chi ha detto no**.\n\n'
+      + '✅ **FATTO (16/9)**: due email nuove (`gaia_invito`, `gaia_promemoria`, ritoccabili da Modelli email); pannello «✨ Invito a '
+      + 'Gaia» in Marketing (interruttore, quanti al giorno, dopo quanti giorni il promemoria, fascia oraria, invio di prova, contatori); '
+      + 'cron nuovo ogni 15 minuti (`metabole-cron-invito-gaia` in `render.yaml`); tabella `gaia_invite` (**migrazione** '
+      + '`20260916140000_invito_gaia`). Il link apre una pagina con un pulsante che crea l\'accesso e porta a scegliere la password; '
+      + '«Cancellati con un clic» apre la conferma e toglie la persona da tutte le email promozionali. Avviso '
+      + '`invito_gaia_entrata` alla coach (o alla manager) al primo accesso dopo l\'email. Nasce **spento**.\n\n'
+      + '⚠️ Con le liste storiche importate i lead sono decine di migliaia: a 100 al giorno servono mesi. Il pannello dice quanti '
+      + 'giorni al ritmo attuale, e il numero si alza da lì (massimo 1000).',
+  },
+
 ];

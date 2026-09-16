@@ -1,0 +1,54 @@
+Summary:
+Invito a Gaia: 100 lead al giorno da Nuovo contatto, promemoria dopo 15 giorni, avviso alla coach quando entrano
+
+Description:
+Richiesta di Simone del 16/9. Ogni giorno un email di invito a provare Gaia ai lead in «Nuovo contatto»
+senza account (tranne chi ha detto no), con il link per scegliere la password e quello per cancellarsi.
+Dopo 15 giorni un solo promemoria a chi non è entrata. Quando una lead invitata entra nell app, avviso
+alla sua coach, o alla manager delle coach (gli admin se non c è) se non ha coach.
+
+Backend:
+- tabella gaia_invite (migrazione 20260916140000_invito_gaia): una riga per lead esaminato, email unica,
+  esito invio/inviato/fallito/saltato, tentativi, promemoria, clic, entrata;
+- marketing/invito-gaia: regole pure, due modelli email (gaia_invito, gaia_promemoria), pagine dei link,
+  servizio del giro, controller del pannello e controller pubblico /public/gaia (GET mostra, POST agisce);
+- cron nuovo internal/cron/invito-gaia ogni 15 minuti (render.yaml, metabole-cron-invito-gaia):
+  niente timer nel processo, le istanze sono due;
+- tetto del giorno ricontato prima di ogni invio; consensi ricontrollati all invio; scartati fuori coda;
+  falliti riprovati fino a 3 volte a 6 ore; il link apre solo se la scheda ha ancora l indirizzo invitato;
+- parametri gaia_invito_* (nasce spento); avviso invito_gaia_entrata agganciato ad accesso e registrazione;
+- NotificationsService.notify ora dice se la riga è stata scritta;
+- link di disiscrizione con un clic delle campagne: mancava /api/v1 (common/url-api-pubblica.ts);
+  i link degli allegati della chat non raddoppiano /api/v1 se PUBLIC_API_URL lo contiene.
+
+Backoffice: pannello «Invito a Gaia» in Marketing (interruttore con conferma, numeri, invio di prova, contatori).
+
+File:
+backend/prisma/schema.prisma
+backend/prisma/migrations/20260916140000_invito_gaia/migration.sql (nuovo)
+backend/prisma/seed.ts
+backend/src/marketing/invito-gaia/ (nuova cartella: email-gaia.ts, entrata.ts, entrata.spec.ts,
+  invito-gaia.controller.ts, invito-gaia.service.ts, invito-gaia.service.spec.ts, pagine.ts, regole.ts, regole.spec.ts)
+backend/src/marketing/marketing.module.ts
+backend/src/marketing/marketing.service.ts
+backend/src/marketing/lifecycle.service.ts
+backend/src/common/url-api-pubblica.ts (nuovo)
+backend/src/common/url-api-pubblica.spec.ts (nuovo)
+backend/src/cron/cron.controller.ts
+backend/src/cron/cron.controller.spec.ts
+backend/src/cron/cron.module.ts
+backend/src/auth/auth.service.ts
+backend/src/notifications/notifications.service.ts
+backend/src/notifications/staff-notifications.ts
+backend/src/chat/chat.controller.ts
+backend/src/chat/allegati-chat.service.spec.ts
+backend/src/lavori/voci-iniziali.ts
+backoffice/src/components/InvitoGaia.tsx (nuovo)
+backoffice/src/lib/invitoGaia.ts (nuovo)
+backoffice/src/lib/invitoGaia.spec.ts (nuovo)
+backoffice/src/pages/Marketing.tsx
+render.yaml
+progetto/REGISTRO.md
+
+Una migrazione (la applica Render al deploy). Un cron nuovo in render.yaml. Nessuna variabile d ambiente
+nuova. Nessuna dipendenza nuova. Niente app: nessuna OTA.

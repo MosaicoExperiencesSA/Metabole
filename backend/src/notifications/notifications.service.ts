@@ -199,8 +199,9 @@ export class NotificationsService {
    * differenza fra una regola e due regole che un giorno divergono — e quando divergono, quella che
    * smette di avvisare non lo dice a nessuno.
    */
-  async notify(input: { userId: string; type: string; title: string; body: string; payload?: Record<string, unknown> }): Promise<void> {
-    await notificaUtente(this.prisma, this.push, input);
+  /** `true` se la riga è stata scritta davvero (vedi `notificaUtente`); chi non lo guarda può ignorarlo. */
+  async notify(input: { userId: string; type: string; title: string; body: string; payload?: Record<string, unknown> }): Promise<boolean> {
+    return notificaUtente(this.prisma, this.push, input);
   }
 
   /** La campanella mostra solo ciò che non è stato archiviato. */

@@ -20,6 +20,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-16
 
+- `[Sviluppo]` ✨ **Invito a Gaia: 100 lead al giorno, promemoria a 15 giorni, avviso alla coach.** Richiesta di
+  Simone del 16/9: un invito quotidiano ai lead in «Nuovo contatto» a provare Gaia, con il link per scegliere la
+  password e quello per cancellarsi (gestito), un promemoria dopo 15 giorni e una notifica alla coach — o alla
+  manager se non c'è coach — quando la lead entra. Destinatari decisi da Simone: tutti tranne chi ha detto no.
+  Tabella nuova `gaia_invite` (**migrazione** `20260916140000_invito_gaia`), modelli `gaia_invito` e
+  `gaia_promemoria`, pannello «✨ Invito a Gaia» in Marketing, cron nuovo ogni 15 minuti
+  (`metabole-cron-invito-gaia` in `render.yaml`: niente timer nel processo, le istanze sono due). Il link
+  dell'email apre una pagina con un pulsante (i filtri antispam aprono i link da soli: il GET non fa niente), e
+  funziona solo se la scheda ha ancora l'indirizzo a cui è partito l'invito. Due revisioni avversariali: dieci
+  correzioni prima della consegna (tetto ricontato a ogni invio, scartati fuori coda, falliti riprovati, doppioni
+  per indirizzo, promemoria solo all'indirizzo invitato, avviso anche a chi si registra su una scheda doppia).
+  ⚠️ Trovato strada facendo: il link «disiscriviti con un clic» delle campagne puntava a una rotta senza
+  `/api/v1` (404). Corretto in `common/url-api-pubblica.ts`. Nasce **spento**.
+
 - `[Sviluppo]` 🛒 **Carrello: indirizzo a metà → popup rosso «Completa i dati per procedere».** Richiesta di
   Simone del 16/9: *«dobbiamo evidenziare che i dati vanno compilati»* e *«facciamo un popup che al click
   sulla modalità di pagamento esce in rosso la scritta»*. Prima il pulsante «Paga» restava spento senza

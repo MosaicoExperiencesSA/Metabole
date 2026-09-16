@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner } from '../components/ui';
+import InvitoGaia from '../components/InvitoGaia';
 
 type Options = {
   lists: { id: string; name: string; color: string | null }[];
@@ -324,6 +325,9 @@ export function Marketing() {
           </div>
         </Modal>
       )}
+
+      {/* Invito a Gaia (16/9): 100 lead al giorno + promemoria. */}
+      <InvitoGaia />
 
       {/* Automazione cicli: in fondo alla pagina (richiesta di Simone). */}
       <FunnelLancio />

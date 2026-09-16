@@ -917,6 +917,7 @@ model CrmRecord {
   tags          String[] @default([]) // etichette libere per la segmentazione marketing (es. "mamma", "acquisto-2024")
   reminders  CrmReminder[]
   listMemberships CrmListMember[]
+  gaiaInvite GaiaInvite?
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
@@ -2563,6 +2564,34 @@ model LifecycleSettings {
 
 /// Log/dedup degli invii ciclo di vita: garantisce che un innesco parta una sola
 /// volta per utente (dedupeKey = chiave, o chiave:anno per gli eventi ricorrenti).
+/// Invito a provare Gaia (16/9): una riga per lead esaminato — l'invito parte UNA volta sola, il
+/// promemoria anche. `esito`: invio · inviato · fallito · saltato:<motivo> (le schede scartate
+/// escono dalla coda e non si rileggono a ogni giro). `email` è l'indirizzo a cui è partito l'invito:
+/// unico, così due schede con lo stesso indirizzo non ricevono due inviti; vuoto per le scartate.
+/// `enteredAt` = la prima volta che è entrata nell'app dopo l'invito (e lo staff è stato avvisato).
+/// Vedi `src/marketing/invito-gaia/`.
+model GaiaInvite {
+  id                String    @id @default(uuid())
+  crmRecordId       String    @unique @map("crm_record_id")
+  crmRecord         CrmRecord @relation(fields: [crmRecordId], references: [id], onDelete: Cascade)
+  email             String?   @unique
+  esito             String    @default("invio")
+  tentativi         Int       @default(0)
+  ultimoTentativoAt DateTime? @map("ultimo_tentativo_at")
+  sentAt            DateTime? @map("sent_at")
+  reminderSentAt    DateTime? @map("reminder_sent_at")
+  /// null = promemoria ancora da decidere · invio · inviato · fallito:1 · fallito · saltato:<motivo>
+  reminderEsito     String?   @map("reminder_esito")
+  clickedAt         DateTime? @map("clicked_at")
+  enteredAt         DateTime? @map("entered_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@index([ultimoTentativoAt])
+  @@index([sentAt])
+  @@index([esito])
+  @@map("gaia_invite")
+}
+
 model LifecycleEmail {
   id          String   @id @default(uuid())
   userId      String   @map("user_id")

@@ -11,6 +11,7 @@ import * as argon2 from 'argon2';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { segnaPrimoAccesso } from '../commerce/primo-accesso';
+import { segnaEntrataInvitoGaia } from '../marketing/invito-gaia/entrata';
 import { CrmService } from '../commerce/crm.service';
 import { LeadAssignmentService } from '../commerce/lead-assignment.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -153,6 +154,8 @@ export class AuthService {
      * mai entrati. La chiave dello stato sta in `commerce/primo-accesso.ts`, non qui.
      */
     await segnaPrimoAccesso(this.prisma as never, user.id).catch(() => undefined);
+    // Invito a Gaia (16/9): se questa persona aveva ricevuto l'email, la sua coach (o la manager) lo sa.
+    await segnaEntrataInvitoGaia(this.prisma, this.notifications, user.id);
 
     const tokens = await this.issueTokenPair(user);
     return { user: this.toPublicUser(user), ...tokens };
@@ -241,6 +244,8 @@ export class AuthService {
      */
     if (user.role === 'client' && !isMasterLogin) {
       await segnaPrimoAccesso(this.prisma as never, user.id).catch(() => undefined);
+      // Invito a Gaia (16/9): la prima volta che entra dopo l'email, avviso alla coach o alla manager.
+      await segnaEntrataInvitoGaia(this.prisma, this.notifications, user.id);
     }
 
     const tokens = await this.issueTokenPair(user);
