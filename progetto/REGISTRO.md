@@ -20,6 +20,15 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-16
 
+- `[Sviluppo]` 🛒 **Carrello: indirizzo a metà → popup rosso «Completa i dati per procedere».** Richiesta di
+  Simone del 16/9: *«dobbiamo evidenziare che i dati vanno compilati»* e *«facciamo un popup che al click
+  sulla modalità di pagamento esce in rosso la scritta»*. Prima il pulsante «Paga» restava spento senza
+  spiegazioni. Ora toccare «Carta», «Bonifico» o il pulsante con l'indirizzo incompleto apre un popup
+  con il titolo rosso e l'elenco dei campi mancanti; i campi vuoti si colorano di rosso, sotto compare la
+  scritta rossa, e «Completa l'indirizzo» porta il cursore sul primo campo vuoto. Regola in
+  `app/src/lib/indirizzoCheckout.ts` (con prove), pagina `Checkout.tsx`. Solo app → **OTA 2.2.7**,
+  niente migrazioni. Voce Lavori `carrello-indirizzo-da-completare`.
+
 - `[Sviluppo]` 📎 **Nelle chat con coach e nutrizionista si allega un file.** Richiesta di Simone del
   16/9: *«nelle chat tutte, anche quella del Nutrizionista, mettiamo la possibilità di allegare un
   file, immagine, ecc»*. Un file per messaggio, fino a **8 MB** (il file viaggia in base64 nel JSON,

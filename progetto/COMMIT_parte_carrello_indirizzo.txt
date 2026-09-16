@@ -1,0 +1,24 @@
+Summary:
+Carrello: se l indirizzo di spedizione è a metà, un popup rosso dice «Completa i dati per procedere»
+
+Description:
+Richiesta di Simone del 16/9. Prima il pulsante Paga restava spento senza dire perché, e la cliente
+che toccava Carta o Bonifico non vedeva succedere niente.
+
+Ora, se la cliente sceglie il metodo di pagamento (o preme il pulsante) con l indirizzo incompleto:
+- sale un popup con il titolo rosso «Completa i dati per procedere» e l elenco dei campi che mancano;
+- i campi vuoti diventano rossi e sotto l indirizzo compare la scritta rossa;
+- «Completa l indirizzo» chiude il popup e porta il cursore sul primo campo vuoto.
+Se l indirizzo è già in scheda (card chiusa) non cambia niente.
+
+File:
+app/src/lib/indirizzoCheckout.ts (nuovo)
+app/src/lib/indirizzoCheckout.spec.ts (nuovo)
+app/src/pages/Checkout.tsx
+app/src/theme.css
+backend/src/lavori/voci-iniziali.ts
+progetto/REGISTRO.md
+app/package.json (versione 2.2.7, la scrive ota-release)
+backend/ota-bundles/metabole-2.2.7.zip (nuovo)
+
+Niente migrazioni. Nessuna dipendenza nuova. Solo app: si pubblica con OTA 2.2.7.

@@ -142,6 +142,14 @@ p { line-height: 1.5; }
 .banner { border-radius: 12px; padding: 12px 14px; font-size: 14px; margin-bottom: 14px; }
 .banner.err { background: #fdecec; color: #b3261e; }
 .banner.ok { background: #e7f5ef; color: #0e7c66; }
+/* Carrello (16/9): indirizzo da completare — campi vuoti in rosso, scritta rossa e popup. */
+.input.manca { border-color: #b3261e; background: #fff7f7; }
+.input.manca:focus { outline: 2px solid #b3261e; outline-offset: 0; }
+.avviso-rosso { display: flex; align-items: center; gap: 6px; margin: 10px 2px 0; color: #b3261e; font-size: 13.5px; font-weight: 700; }
+.avviso-rosso i { font-size: 17px; }
+.avviso-rosso-titolo { margin: 0; color: #b3261e; font-size: 19px; }
+.avviso-rosso-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.avviso-rosso-lista li { background: #fdecec; color: #b3261e; border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; }
 
 .link { color: var(--teal-dark); font-weight: 700; text-decoration: none; }
 

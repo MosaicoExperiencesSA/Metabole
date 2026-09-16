@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { track } from '../lib/track';
 import { useCart } from '../cart/CartContext';
 import AppHeader from '../components/AppHeader';
+import Sheet from '../components/Sheet';
+import { AVVISO_INDIRIZZO, campiMancanti, nomeCampo, type IndirizzoCheckout } from '../lib/indirizzoCheckout';
 
 const euro = (c: number) => (c / 100).toFixed(2).replace('.', ',') + ' €';
 
@@ -21,6 +23,11 @@ export default function Checkout() {
   const [addr, setAddr] = useState({ addressLine: '', postalCode: '', city: '', province: '' });
   const [hasAddress, setHasAddress] = useState(false);
   const [editAddr, setEditAddr] = useState(false);
+  // Popup «Completa i dati per procedere»: si apre se la cliente sceglie come pagare (o preme
+  // «Paga») con l'indirizzo a metà. Da quel momento i campi vuoti restano segnati in rosso.
+  const [avvisoIndirizzo, setAvvisoIndirizzo] = useState(false);
+  const [segnaMancanti, setSegnaMancanti] = useState(false);
+  const campiRef = useRef<Partial<Record<keyof IndirizzoCheckout, HTMLInputElement | null>>>({});
 
   // Carrello abbandonato: segnala l'inizio del checkout (una volta per apertura).
   // Se non si conclude l'acquisto, partono i recuperi automatici a +1h/+24h/+72h.
@@ -47,8 +54,35 @@ export default function Checkout() {
       .catch(() => setEditAddr(true));
   }, []);
 
-  const addrComplete = !!(addr.addressLine.trim() && addr.postalCode.trim() && addr.city.trim() && addr.province.trim());
+  const mancanti = campiMancanti(addr);
+  const addrComplete = mancanti.length === 0;
+  const formIndirizzo = !(hasAddress && !editAddr);
   function upAddr(k: keyof typeof addr, v: string) { setAddr((s) => ({ ...s, [k]: v })); }
+
+  /** true = indirizzo a metà: apre il popup e il pagamento non parte. */
+  function fermaSeIndirizzoIncompleto(): boolean {
+    if (!formIndirizzo || addrComplete) return false;
+    setSegnaMancanti(true);
+    setAvvisoIndirizzo(true);
+    return true;
+  }
+
+  function chiudiAvviso() {
+    setAvvisoIndirizzo(false);
+    const primo = campiMancanti(addr)[0];
+    const el = primo ? campiRef.current[primo] : null;
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.focus({ preventScroll: true });
+    }
+  }
+
+  function scegliMetodo(m: 'card' | 'bank_transfer') {
+    setMethod(m);
+    fermaSeIndirizzoIncompleto();
+  }
+
+  const segnato = (k: keyof IndirizzoCheckout) => (segnaMancanti && mancanti.includes(k) ? ' manca' : '');
 
   // Mostra solo i metodi abilitati dal backoffice (Parametri).
   useEffect(() => {
@@ -97,6 +131,8 @@ export default function Checkout() {
   }
 
   async function pay() {
+    if (busy) return;
+    if (fermaSeIndirizzoIncompleto()) return;
     setBusy(true);
     setErr(null);
     // Se l'indirizzo è stato inserito/modificato ora, lo salviamo in scheda prima di pagare.
@@ -256,12 +292,17 @@ export default function Checkout() {
         </div>
       ) : (
         <div className="card">
-          <input className="input" placeholder="Via e numero civico" value={addr.addressLine} onChange={(e) => upAddr('addressLine', e.target.value)} autoComplete="address-line1" />
+          <input ref={(el) => { campiRef.current.addressLine = el; }} className={`input${segnato('addressLine')}`} placeholder="Via e numero civico" value={addr.addressLine} onChange={(e) => upAddr('addressLine', e.target.value)} autoComplete="address-line1" />
           <div className="row" style={{ gap: 8, marginTop: 8 }}>
-            <input className="input" style={{ flex: '0 0 34%' }} placeholder="CAP" inputMode="numeric" value={addr.postalCode} onChange={(e) => upAddr('postalCode', e.target.value)} autoComplete="postal-code" />
-            <input className="input" style={{ flex: 1 }} placeholder="Città" value={addr.city} onChange={(e) => upAddr('city', e.target.value)} autoComplete="address-level2" />
+            <input ref={(el) => { campiRef.current.postalCode = el; }} className={`input${segnato('postalCode')}`} style={{ flex: '0 0 34%' }} placeholder="CAP" inputMode="numeric" value={addr.postalCode} onChange={(e) => upAddr('postalCode', e.target.value)} autoComplete="postal-code" />
+            <input ref={(el) => { campiRef.current.city = el; }} className={`input${segnato('city')}`} style={{ flex: 1 }} placeholder="Città" value={addr.city} onChange={(e) => upAddr('city', e.target.value)} autoComplete="address-level2" />
           </div>
-          <input className="input" style={{ marginTop: 8 }} placeholder="Provincia (es. MI)" maxLength={4} value={addr.province} onChange={(e) => upAddr('province', e.target.value.toUpperCase())} autoComplete="address-level1" />
+          <input ref={(el) => { campiRef.current.province = el; }} className={`input${segnato('province')}`} style={{ marginTop: 8 }} placeholder="Provincia (es. MI)" maxLength={4} value={addr.province} onChange={(e) => upAddr('province', e.target.value.toUpperCase())} autoComplete="address-level1" />
+          {segnaMancanti && !addrComplete && (
+            <p className="avviso-rosso" role="alert">
+              <i className="ti ti-alert-circle" /> {AVVISO_INDIRIZZO}
+            </p>
+          )}
         </div>
       )}
 
@@ -269,13 +310,13 @@ export default function Checkout() {
       {!isFree && (
       <div className="opt-list">
         {metodiVisibili.card && (
-          <button type="button" className={`opt${method === 'card' ? ' on' : ''}`} onClick={() => setMethod('card')}>
+          <button type="button" className={`opt${method === 'card' ? ' on' : ''}`} onClick={() => scegliMetodo('card')}>
             <span className="opt-ind">{method === 'card' && <i className="ti ti-check" />}</span>
             <span><b>Carta</b> · pagamento sicuro con Stripe</span>
           </button>
         )}
         {metodiVisibili.bank_transfer && (
-          <button type="button" className={`opt${method === 'bank_transfer' ? ' on' : ''}`} onClick={() => setMethod('bank_transfer')}>
+          <button type="button" className={`opt${method === 'bank_transfer' ? ' on' : ''}`} onClick={() => scegliMetodo('bank_transfer')}>
             <span className="opt-ind">{method === 'bank_transfer' && <i className="ti ti-check" />}</span>
             <span><b>Bonifico</b> · estremi via email</span>
           </button>
@@ -314,10 +355,26 @@ export default function Checkout() {
         className="btn"
         style={{ marginTop: 14 }}
         onClick={pay}
-        disabled={busy || bloccoProdotti || (editAddr && !addrComplete) || (!isFree && !metodiVisibili.card && !metodiVisibili.bank_transfer)}
+        disabled={busy || bloccoProdotti || (!isFree && !metodiVisibili.card && !metodiVisibili.bank_transfer)}
       >
         {busy ? 'Attendi…' : isFree ? 'Attiva gratis' : ricorrente ? `Attiva l’abbonamento · ${euro(total)}/mese` : method === 'card' ? `Paga ${euro(total)}` : 'Ricevi gli estremi'}
       </button>
+
+      {avvisoIndirizzo && (
+        <Sheet onClose={chiudiAvviso}>
+          <div style={{ textAlign: 'center', padding: '4px 4px 0' }}>
+            <span className="big-badge" style={{ background: '#fdecec', color: '#b3261e', margin: '0 auto 12px' }}><i className="ti ti-map-pin" /></span>
+            <h2 className="avviso-rosso-titolo">{AVVISO_INDIRIZZO}</h2>
+            <p className="muted" style={{ fontSize: 13.5, margin: '6px 0 14px' }}>
+              Per spedirti l’ordine ci serve l’indirizzo completo. Mancano:
+            </p>
+            <ul className="avviso-rosso-lista">
+              {mancanti.map((k) => <li key={k}>{nomeCampo(k)}</li>)}
+            </ul>
+            <button className="btn" style={{ marginTop: 16 }} onClick={chiudiAvviso}>Completa l’indirizzo</button>
+          </div>
+        </Sheet>
+      )}
     </div>
   );
 }

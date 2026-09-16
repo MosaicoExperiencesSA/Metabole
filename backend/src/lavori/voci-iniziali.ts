@@ -7423,4 +7423,20 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'scelta la coach legge anche quello che la cliente scrive alla nutrizionista, allegati compresi.',
   },
 
+  {
+    chiave: 'carrello-indirizzo-da-completare',
+    fatta: true,
+    categoria: SIMONE,
+    ordine: 2,
+    nata: '2026-09-16T13:00',
+    titolo: '▶️ Carrello: se l\'indirizzo è a metà, un popup rosso dice «Completa i dati per procedere»',
+    dettaglio:
+      'Simone, 16/9: *«dobbiamo evidenziare che i dati vanno compilati, scriviamo in rosso completare i dati per procedere»* '
+      + 'e *«facciamo un popup che al click sulla modalità di pagamento esce in rosso la scritta»*.\n\n'
+      + '✅ **FATTO (16/9)**: prima il pulsante «Paga» restava spento senza dire perché. Ora, se la cliente tocca «Carta» o '
+      + '«Bonifico» (o il pulsante) con l\'indirizzo incompleto, sale un popup con il titolo rosso e l\'elenco dei campi che '
+      + 'mancano; i campi vuoti diventano rossi, sotto compare la scritta rossa, e «Completa l\'indirizzo» porta il cursore '
+      + 'sul primo campo vuoto. Solo app (`Checkout.tsx`, `lib/indirizzoCheckout.ts`): arriva con una **OTA**, niente migrazioni.',
+  },
+
 ];
