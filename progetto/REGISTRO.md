@@ -18,6 +18,16 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-17
+
+- `[Sviluppo]` 📋 **Invito a Gaia: le caselle del pannello aprono l'elenco.** Richiesta di Simone del 17/9. Toccando
+  inviati, cliccati, entrate, promemoria, in coda o non inviabili si apre una finestra con nome, cognome, email, la
+  data che quella casella conta e il pulsante «Scheda» (scheda lead → scheda cliente se c'è). Pagine da 50, ricerca
+  per nome o email, «Solo oggi» negli inviti, motivo negli scartati. Rotta `GET /marketing/invito-gaia/elenco` con
+  le guardie di Marketing; nomi delle schede importate divisi con la regola di `sistema:nomi`. Niente migrazioni.
+
+---
+
 ## 2026-09-16
 
 - `[Sviluppo]` ⛔ **render.yaml era illeggibile dal 19/8.** Cercando su Render il cron dell'invito a Gaia: il

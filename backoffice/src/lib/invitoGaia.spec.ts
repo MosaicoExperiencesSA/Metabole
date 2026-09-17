@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { giorniPerLaCoda, leggiNumeri, notaGiro, percento, testoAccensione, type InvitoPanoramica } from './invitoGaia';
+import {
+  ELENCHI,
+  dataBreve,
+  giorniPerLaCoda,
+  leggiNumeri,
+  linkScheda,
+  notaGiro,
+  pagineTotali,
+  percento,
+  testoAccensione,
+  urlElenco,
+  type InvitoPanoramica,
+} from './invitoGaia';
 
 const base: InvitoPanoramica = {
   impostazioni: { attivo: false, alGiorno: 100, promemoriaGiorni: 15, oraDa: 9, oraA: 20, linkOre: 48 },
@@ -61,5 +73,41 @@ describe('pannello invito a Gaia (16/9)', () => {
     expect(notaGiro(null)).toBe('completato');
     expect(notaGiro('spento')).toBe('invito spento');
     expect(notaGiro('fuori dalla finestra oraria')).toBe('fuori orario, nessun invio');
+  });
+});
+
+
+describe('elenchi dietro le caselle (17/9)', () => {
+  it('ogni elenco ha titolo e colonna', () => {
+    for (const t of ['inviati', 'oggi', 'cliccati', 'entrati', 'promemoria', 'coda', 'scartati'] as const) {
+      expect(ELENCHI[t].titolo.length).toBeGreaterThan(3);
+      expect(ELENCHI[t].colonnaData.length).toBeGreaterThan(3);
+    }
+  });
+
+  it('il pulsante porta alla scheda lead', () => {
+    expect(linkScheda({ recordId: 'abc-1' })).toBe('/crm/lead/abc-1');
+  });
+
+  it('pagine', () => {
+    expect(pagineTotali(0, 50)).toBe(1);
+    expect(pagineTotali(100, 50)).toBe(2);
+    expect(pagineTotali(101, 50)).toBe(3);
+    expect(pagineTotali(67358, 50)).toBe(1348);
+    expect(pagineTotali(10, 0)).toBe(1);
+  });
+
+  it('data in ora di Roma', () => {
+    expect(dataBreve('2026-09-17T07:01:04Z')).toContain('09:01');
+    expect(dataBreve('2026-09-17T07:01:04Z')).toContain('17/09/2026');
+    expect(dataBreve(null)).toBe('—');
+    expect(dataBreve('boh')).toBe('—');
+  });
+
+  it('url dell elenco: la ricerca corta non si manda', () => {
+    expect(urlElenco('coda', 2, ' rossi ')).toBe('/marketing/invito-gaia/elenco?tipo=coda&pagina=2&cerca=rossi');
+    expect(urlElenco('inviati', 1, 'r')).toBe('/marketing/invito-gaia/elenco?tipo=inviati&pagina=1');
+    expect(urlElenco('scartati', 0, '')).toBe('/marketing/invito-gaia/elenco?tipo=scartati&pagina=1');
+    expect(urlElenco('cliccati', 1, 'maria+test@example.it')).toContain('cerca=maria%2Btest%40example.it');
   });
 });

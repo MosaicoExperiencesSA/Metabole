@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Ip, Patch, Post, Query, Res } from '@nestjs/common';
-import { IsBoolean, IsEmail, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import type { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -7,6 +8,7 @@ import { RequirePage } from '../../common/decorators/require-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthUser } from '../../common/interfaces/auth-user.interface';
 import { InvitoGaiaService } from './invito-gaia.service';
+import { TIPI_ELENCO, type TipoElenco } from './elenco';
 
 class ImpostazioniInvitoDto {
   @IsOptional() @IsBoolean() attivo?: boolean;
@@ -14,6 +16,12 @@ class ImpostazioniInvitoDto {
   @IsOptional() @IsInt() @Min(1) @Max(90) promemoriaGiorni?: number;
   @IsOptional() @IsInt() @Min(0) @Max(23) oraDa?: number;
   @IsOptional() @IsInt() @Min(1) @Max(24) oraA?: number;
+}
+
+class ElencoInvitoDto {
+  @IsIn(TIPI_ELENCO as unknown as string[]) tipo!: TipoElenco;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100000) pagina?: number;
+  @IsOptional() @IsString() @MaxLength(80) cerca?: string;
 }
 
 class ProvaInvitoDto {
@@ -30,6 +38,12 @@ export class InvitoGaiaController {
   @Get()
   panoramica() {
     return this.invito.panoramica();
+  }
+
+  /** L'elenco dietro una casella: nome, cognome, email e la scheda da aprire. */
+  @Get('elenco')
+  elenco(@Query() q: ElencoInvitoDto) {
+    return this.invito.elenco(q.tipo, q.pagina, q.cerca);
   }
 
   @Patch()

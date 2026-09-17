@@ -7481,4 +7481,19 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⚠️ Dopo la push: su Render, Blueprint Metabole → deve risultare **Synced**, e devono comparire i due cron.',
   },
 
+  {
+    chiave: 'invito-gaia-elenchi',
+    fatta: true,
+    categoria: SIMONE,
+    ordine: 2,
+    nata: '2026-09-17T10:00',
+    titolo: '▶️ Invito a Gaia: toccando una casella del pannello si apre l\'elenco con nome, cognome, email e la scheda',
+    dettaglio:
+      'Simone, 17/9: *«se clicco sui campi mi si deve aprire la lista con nome, cognome, mail e il pulsante per andare nella sua scheda»*.\n\n'
+      + '✅ **FATTO (17/9)**: le sei caselle (inviati, cliccati, entrate, promemoria, in coda, non inviabili) aprono una '
+      + 'finestra con l\'elenco a pagine da 50, la ricerca per nome o email, la data che quella casella conta e il pulsante '
+      + '«Scheda» (scheda lead, che porta a quella cliente se c\'è). Negli inviti c\'è «Solo oggi»; negli scartati il motivo. '
+      + 'Rotta `GET /marketing/invito-gaia/elenco` con le guardie della pagina Marketing. Niente migrazioni.',
+  },
+
 ];

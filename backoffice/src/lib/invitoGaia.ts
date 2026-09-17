@@ -69,3 +69,56 @@ export function leggiNumeri(b: { alGiorno: string; promemoriaGiorni: string; ora
   if (valori.oraDa >= valori.oraA) return { ok: false, errore: 'L’ora di inizio deve venire prima dell’ora di fine.' };
   return { ok: true, valori };
 }
+
+// ---------- Gli elenchi dietro le caselle (17/9) ----------
+
+export type TipoElenco = 'inviati' | 'oggi' | 'cliccati' | 'entrati' | 'promemoria' | 'coda' | 'scartati';
+
+export type RigaElenco = {
+  recordId: string;
+  clientId: string | null;
+  nome: string;
+  cognome: string;
+  email: string;
+  quando: string | null;
+  motivo: string | null;
+};
+
+export type Elenco = { tipo: TipoElenco; pagina: number; perPagina: number; totale: number; righe: RigaElenco[] };
+
+/** Titolo della finestra e nome della colonna data, per ogni elenco. */
+export const ELENCHI: Record<TipoElenco, { titolo: string; colonnaData: string; vuoto: string }> = {
+  inviati: { titolo: 'Inviti mandati', colonnaData: 'Inviato il', vuoto: 'Nessun invito ancora partito.' },
+  oggi: { titolo: 'Inviti di oggi', colonnaData: 'Ultimo tentativo', vuoto: 'Oggi non è ancora partito niente.' },
+  cliccati: { titolo: 'Hanno cliccato', colonnaData: 'Cliccato il', vuoto: 'Ancora nessuno ha cliccato il link.' },
+  entrati: { titolo: 'Sono entrate', colonnaData: 'Entrata il', vuoto: 'Ancora nessuna è entrata nell’app.' },
+  promemoria: { titolo: 'Promemoria mandati', colonnaData: 'Promemoria il', vuoto: 'Nessun promemoria ancora partito.' },
+  coda: { titolo: 'In coda', colonnaData: 'Scheda creata il', vuoto: 'La coda è vuota.' },
+  scartati: { titolo: 'Non inviabili', colonnaData: 'Esaminata il', vuoto: 'Nessuna scheda scartata.' },
+};
+
+/** Il collegamento alla scheda: sempre quella del lead, che porta a quella cliente se c'è. */
+export function linkScheda(r: Pick<RigaElenco, 'recordId'>): string {
+  return `/crm/lead/${encodeURIComponent(r.recordId)}`;
+}
+
+export function pagineTotali(totale: number, perPagina: number): number {
+  if (!Number.isFinite(totale) || !Number.isFinite(perPagina) || perPagina <= 0) return 1;
+  return Math.max(1, Math.ceil(totale / perPagina));
+}
+
+/** Data e ora leggibili (ora di Roma), trattino se manca. */
+export function dataBreve(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+/** L'indirizzo dell'elenco, con la ricerca solo se ha almeno due lettere (come il server). */
+export function urlElenco(tipo: TipoElenco, pagina: number, cerca: string): string {
+  const p = new URLSearchParams({ tipo, pagina: String(Math.max(1, Math.floor(pagina) || 1)) });
+  const c = cerca.trim();
+  if (c.length >= 2) p.set('cerca', c.slice(0, 80));
+  return `/marketing/invito-gaia/elenco?${p.toString()}`;
+}

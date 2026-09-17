@@ -559,3 +559,93 @@ describe('InvitoGaiaService — impostazioni e prova', () => {
     await expect(f.svc.prova('io@x.it', 'adm')).rejects.toThrow(/BREVO/);
   });
 });
+
+describe('InvitoGaiaService — gli elenchi del pannello (17/9)', () => {
+  const scheda = (id: string, extra: Record<string, unknown> = {}) => ({
+    id, email: `${id}@example.it`, name: 'Maria Grazia Cerchiara', firstName: null, lastName: null, clientId: null, createdAt: new Date('2026-09-01T10:00:00Z'), ...extra,
+  });
+
+  it('inviati: solo esito inviato, dal più recente, con nome e cognome divisi e la data d invio', async () => {
+    const f = costruisci();
+    f.prisma.gaiaInvite.count.mockResolvedValue(1);
+    f.prisma.gaiaInvite.findMany.mockResolvedValue([
+      { email: 'maria@example.it', esito: 'inviato', sentAt: new Date('2026-09-17T07:01:04Z'), createdAt: new Date(), crmRecord: scheda('r1', { clientId: 'u1' }) },
+    ]);
+    const e = await f.svc.elenco('inviati');
+    const arg = f.prisma.gaiaInvite.findMany.mock.calls[0][0];
+    expect(arg.where).toEqual({ AND: [{ esito: 'inviato' }] });
+    expect(arg.orderBy[0]).toEqual({ sentAt: { sort: 'desc', nulls: 'last' } });
+    expect(arg.take).toBe(50);
+    expect(arg.skip).toBe(0);
+    expect(e).toEqual({
+      tipo: 'inviati', pagina: 1, perPagina: 50, totale: 1,
+      righe: [{ recordId: 'r1', clientId: 'u1', nome: 'Maria Grazia', cognome: 'Cerchiara', email: 'maria@example.it', quando: '2026-09-17T07:01:04.000Z', motivo: null }],
+    });
+  });
+
+  it('ogni casella ha il suo filtro e la sua data', async () => {
+    const attesi: Record<string, [object, string]> = {
+      cliccati: [{ clickedAt: { not: null } }, 'clickedAt'],
+      entrati: [{ enteredAt: { not: null } }, 'enteredAt'],
+      promemoria: [{ reminderEsito: 'inviato' }, 'reminderSentAt'],
+      scartati: [{ OR: [{ esito: { startsWith: 'saltato' } }, { esito: 'fallito' }] }, 'ultimoTentativoAt'],
+    };
+    for (const [tipo, [where, data]] of Object.entries(attesi)) {
+      const f = costruisci();
+      await f.svc.elenco(tipo as never);
+      const arg = f.prisma.gaiaInvite.findMany.mock.calls[0][0];
+      expect(arg.where).toEqual({ AND: [where] });
+      expect(Object.keys(arg.orderBy[0])).toEqual([data]);
+    }
+  });
+
+  it('oggi: gli stessi che conta la casella (tentativi di oggi, scartati esclusi), con il motivo se è fallito', async () => {
+    const f = costruisci();
+    f.prisma.gaiaInvite.findMany.mockResolvedValue([
+      { email: 'a@example.it', esito: 'inviato', ultimoTentativoAt: new Date(), createdAt: new Date(), crmRecord: scheda('r1') },
+      { email: 'b@example.it', esito: 'fallito', ultimoTentativoAt: new Date(), createdAt: new Date(), crmRecord: scheda('r2') },
+    ]);
+    const e = await f.svc.elenco('oggi');
+    const w = f.prisma.gaiaInvite.findMany.mock.calls[0][0].where.AND[0];
+    expect(w.NOT).toEqual({ esito: { startsWith: 'saltato' } });
+    expect(Object.keys(w.ultimoTentativoAt)).toEqual(['gte']);
+    expect(e.righe.map((r) => r.motivo)).toEqual([null, 'Invio non riuscito (si riprova più tardi)']);
+  });
+
+  it('scartati: il motivo in italiano, e la data di nascita della riga se manca il tentativo', async () => {
+    const f = costruisci();
+    f.prisma.gaiaInvite.findMany.mockResolvedValue([
+      { email: null, esito: 'saltato:account', ultimoTentativoAt: null, createdAt: new Date('2026-09-17T07:00:00Z'), crmRecord: scheda('r1') },
+    ]);
+    const e = await f.svc.elenco('scartati');
+    expect(e.righe[0]).toEqual(expect.objectContaining({ motivo: 'Ha già un account', email: 'r1@example.it', quando: '2026-09-17T07:00:00.000Z' }));
+  });
+
+  it('coda: le schede che il giro pescherebbe, con la ricerca e la pagina', async () => {
+    const f = costruisci();
+    f.prisma.crmRecord.count.mockResolvedValue(67358);
+    f.prisma.crmRecord.findMany.mockResolvedValue([scheda('r9', { firstName: 'Lucia', lastName: 'Bianchi' })]);
+    const e = await f.svc.elenco('coda', '3', ' bianchi ');
+    const arg = f.prisma.crmRecord.findMany.mock.calls[0][0];
+    expect(arg.where.AND[0]).toEqual(expect.objectContaining({ stage: 'lead_in', clientId: null, gaiaInvite: { is: null } }));
+    expect(arg.where.AND[1].OR).toContainEqual({ email: { contains: 'bianchi', mode: 'insensitive' } });
+    expect(arg.skip).toBe(100);
+    expect(e.totale).toBe(67358);
+    expect(e.righe[0]).toEqual(expect.objectContaining({ nome: 'Lucia', cognome: 'Bianchi', quando: '2026-09-01T10:00:00.000Z' }));
+    expect(f.prisma.gaiaInvite.findMany).not.toHaveBeenCalled();
+  });
+
+  it('la ricerca sugli inviti passa dalla scheda', async () => {
+    const f = costruisci();
+    await f.svc.elenco('cliccati', 1, 'rossi');
+    const w = f.prisma.gaiaInvite.findMany.mock.calls[0][0].where;
+    expect(w.AND[1].crmRecord.OR).toContainEqual({ name: { contains: 'rossi', mode: 'insensitive' } });
+    expect(f.prisma.gaiaInvite.count.mock.calls.at(-1)![0].where).toEqual(w);
+  });
+
+  it('una ricerca di una lettera sola non filtra', async () => {
+    const f = costruisci();
+    await f.svc.elenco('entrati', 1, 'r');
+    expect(f.prisma.gaiaInvite.findMany.mock.calls[0][0].where.AND).toHaveLength(1);
+  });
+});

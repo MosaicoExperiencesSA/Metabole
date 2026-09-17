@@ -1,0 +1,38 @@
+Summary:
+Invito a Gaia: toccando una casella del pannello si apre l elenco con nome, cognome, email e la scheda
+
+Description:
+Richiesta di Simone del 17/9: «se clicco sui campi mi si deve aprire la lista con nome, cognome, mail
+e il pulsante per andare nella sua scheda».
+
+Backoffice:
+- le sei caselle del pannello (inviati, cliccati, entrate, promemoria, in coda, non inviabili) sono
+  pulsanti e aprono una finestra con l elenco;
+- elenco a pagine da 50, ricerca per nome, cognome o email, la data che quella casella conta,
+  pulsante «Scheda» (scheda lead, che porta a quella cliente se c è);
+- negli inviti la spunta «Solo oggi»; negli scartati e negli inviti di oggi il motivo in italiano.
+
+Backend:
+- GET /marketing/invito-gaia/elenco?tipo=&pagina=&cerca= con le guardie della pagina Marketing;
+- marketing/invito-gaia/elenco.ts: tipi di elenco, nome e cognome dalle schede importate (dividiNome),
+  motivi leggibili, pagina e ricerca ripulite;
+- l elenco «oggi» e la coda usano gli stessi filtri dei numeri nelle caselle.
+
+Prove: elenco.spec.ts e invito-gaia.controller.spec.ts nuovi (validazione vera della query),
+7 casi nuovi nel servizio, 5 nel backoffice. Backend 8567, backoffice 372, build verdi.
+
+File:
+backend/src/marketing/invito-gaia/elenco.ts (nuovo)
+backend/src/marketing/invito-gaia/elenco.spec.ts (nuovo)
+backend/src/marketing/invito-gaia/invito-gaia.controller.ts
+backend/src/marketing/invito-gaia/invito-gaia.controller.spec.ts (nuovo)
+backend/src/marketing/invito-gaia/invito-gaia.service.ts
+backend/src/marketing/invito-gaia/invito-gaia.service.spec.ts
+backend/src/lavori/voci-iniziali.ts
+backoffice/src/components/InvitoGaia.tsx
+backoffice/src/lib/invitoGaia.ts
+backoffice/src/lib/invitoGaia.spec.ts
+backoffice/src/theme.css
+progetto/REGISTRO.md
+
+Niente migrazioni. Nessuna dipendenza nuova. Niente app.

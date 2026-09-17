@@ -12,6 +12,7 @@ import { MailService } from '../../mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MarketingService } from '../marketing.service';
 import { GAIA_INVITO, GAIA_PROMEMORIA } from './email-gaia';
+import { PER_PAGINA, cercaValida, motivoLeggibile, nomeECognome, paginaValida, type RigaElenco, type TipoElenco } from './elenco';
 import { inizioDiOggi } from '../../common/date-only';
 import {
   emailMascherata,
@@ -525,6 +526,80 @@ export class InvitoGaiaService {
       ultimoInvio: (ultimo as { sentAt: Date | null } | null)?.sentAt ?? null,
       nellaFinestraOra: nellaFinestra(adesso, s.oraDa, s.oraA),
     };
+  }
+
+  /**
+   * L'elenco dietro una casella del pannello, a pagine da 50, con la ricerca per nome o email.
+   * Le date sono quelle che quella casella conta: invio, clic, entrata, promemoria, ultimo tentativo
+   * per gli scartati, nascita della scheda per la coda.
+   */
+  async elenco(tipo: TipoElenco, paginaGrezza?: unknown, cercaGrezza?: unknown): Promise<{ tipo: TipoElenco; pagina: number; perPagina: number; totale: number; righe: RigaElenco[] }> {
+    const pagina = paginaValida(paginaGrezza);
+    const cerca = cercaValida(cercaGrezza);
+    const skip = (pagina - 1) * PER_PAGINA;
+    const campiScheda = { id: true, email: true, name: true, firstName: true, lastName: true, clientId: true, createdAt: true } as const;
+    type Scheda2 = { id: string; email: string | null; name: string | null; firstName: string | null; lastName: string | null; clientId: string | null; createdAt: Date };
+    const filtroScheda = cerca
+      ? {
+          OR: [
+            { name: { contains: cerca, mode: 'insensitive' } },
+            { firstName: { contains: cerca, mode: 'insensitive' } },
+            { lastName: { contains: cerca, mode: 'insensitive' } },
+            { email: { contains: cerca, mode: 'insensitive' } },
+          ],
+        }
+      : null;
+    const riga = (c: Scheda2, email: string | null, quando: Date | null, motivo: string | null): RigaElenco => ({
+      recordId: c.id,
+      clientId: c.clientId,
+      ...nomeECognome(c),
+      email: email ?? c.email ?? '',
+      quando: quando ? quando.toISOString() : null,
+      motivo,
+    });
+
+    if (tipo === 'coda') {
+      const where = { AND: [await this.coda(), ...(filtroScheda ? [filtroScheda] : [])] } as never;
+      const [totale, schede] = await Promise.all([
+        this.prisma.crmRecord.count({ where }),
+        this.prisma.crmRecord.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], skip, take: PER_PAGINA, select: campiScheda }),
+      ]);
+      return { tipo, pagina, perPagina: PER_PAGINA, totale, righe: (schede as Scheda2[]).map((c) => riga(c, null, c.createdAt, null)) };
+    }
+
+    const oggi = inizioDiOggi(new Date());
+    const casi: Record<Exclude<TipoElenco, 'coda'>, { where: object; data: 'sentAt' | 'clickedAt' | 'enteredAt' | 'reminderSentAt' | 'ultimoTentativoAt' }> = {
+      inviati: { where: { esito: 'inviato' }, data: 'sentAt' },
+      oggi: { where: { ultimoTentativoAt: { gte: oggi }, NOT: { esito: { startsWith: 'saltato' } } }, data: 'ultimoTentativoAt' },
+      cliccati: { where: { clickedAt: { not: null } }, data: 'clickedAt' },
+      entrati: { where: { enteredAt: { not: null } }, data: 'enteredAt' },
+      promemoria: { where: { reminderEsito: 'inviato' }, data: 'reminderSentAt' },
+      scartati: { where: { OR: [{ esito: { startsWith: 'saltato' } }, { esito: 'fallito' }] }, data: 'ultimoTentativoAt' },
+    };
+    const caso = casi[tipo];
+    const where = { AND: [caso.where, ...(filtroScheda ? [{ crmRecord: filtroScheda }] : [])] } as never;
+    const [totale, inviti] = await Promise.all([
+      this.prisma.gaiaInvite.count({ where }),
+      this.prisma.gaiaInvite.findMany({
+        where,
+        orderBy: [{ [caso.data]: { sort: 'desc', nulls: 'last' } }, { id: 'asc' }] as never,
+        skip,
+        take: PER_PAGINA,
+        select: {
+          email: true, esito: true, sentAt: true, clickedAt: true, enteredAt: true, reminderSentAt: true, ultimoTentativoAt: true, createdAt: true,
+          crmRecord: { select: campiScheda },
+        },
+      }),
+    ]);
+    const righe = (inviti as unknown as (Record<string, unknown> & { email: string | null; esito: string; createdAt: Date; crmRecord: Scheda2 | null })[])
+      .filter((i) => !!i.crmRecord)
+      .map((i) => riga(
+        i.crmRecord as Scheda2,
+        i.email,
+        (i[caso.data] as Date | null) ?? (tipo === 'scartati' ? i.createdAt : null),
+        tipo === 'scartati' || tipo === 'oggi' ? motivoLeggibile(i.esito === 'inviato' || i.esito === 'invio' ? null : i.esito) : null,
+      ));
+    return { tipo, pagina, perPagina: PER_PAGINA, totale, righe };
   }
 
   /** Le due email a un indirizzo di prova, con il nome «Maria» e link che non aprono niente. */

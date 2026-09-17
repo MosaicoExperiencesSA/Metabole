@@ -842,3 +842,20 @@ table.grid tr:hover td {
   font-weight: 600;
   font-family: inherit;
 }
+
+/* Invito a Gaia (17/9): le caselle del pannello si toccano e aprono l'elenco. */
+.tessera-invito {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--card);
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.tessera-invito:hover { border-color: #6c4fe0; box-shadow: 0 4px 14px rgba(108, 79, 224, 0.15); transform: translateY(-1px); }
+.tessera-invito:focus-visible { outline: 2px solid #6c4fe0; outline-offset: 2px; }

@@ -2,7 +2,21 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { Modal } from './ui';
-import { giorniPerLaCoda, leggiNumeri, notaGiro, percento, testoAccensione, type InvitoPanoramica } from '../lib/invitoGaia';
+import {
+  ELENCHI,
+  dataBreve,
+  giorniPerLaCoda,
+  leggiNumeri,
+  linkScheda,
+  notaGiro,
+  pagineTotali,
+  percento,
+  testoAccensione,
+  urlElenco,
+  type Elenco,
+  type InvitoPanoramica,
+  type TipoElenco,
+} from '../lib/invitoGaia';
 
 /**
  * «Invito a Gaia» — pannello nella pagina Marketing (16/9, richiesta di Simone).
@@ -17,6 +31,7 @@ export default function InvitoGaia() {
   const [conferma, setConferma] = useState(false);
   const [bozza, setBozza] = useState({ alGiorno: '', promemoriaGiorni: '', oraDa: '', oraA: '' });
   const [emailProva, setEmailProva] = useState('');
+  const [aperto, setAperto] = useState<TipoElenco | null>(null);
 
   function carica() {
     api<InvitoPanoramica>('/marketing/invito-gaia')
@@ -93,13 +108,13 @@ export default function InvitoGaia() {
   const s = p.impostazioni;
   const c = p.conteggi;
   const giorni = giorniPerLaCoda(c.inCoda, s.alGiorno);
-  const tessere: [string, string, string?][] = [
-    ['Inviti mandati', String(c.inviati), `oggi ${c.oggi} su ${s.alGiorno}`],
-    ['Hanno cliccato', String(c.cliccati), percento(c.cliccati, c.inviati)],
-    ['Sono entrate', String(c.entrati), percento(c.entrati, c.inviati)],
-    ['Promemoria', String(c.promemoria), `dopo ${s.promemoriaGiorni} giorni`],
-    ['In coda', String(c.inCoda), giorni != null ? `circa ${giorni} giorni al ritmo attuale` : 'invio fermo'],
-    ['Non inviabili', String(c.scartati + c.falliti), `${c.scartati} scartati · ${c.falliti} falliti`],
+  const tessere: [TipoElenco, string, string, string?][] = [
+    ['inviati', 'Inviti mandati', String(c.inviati), `oggi ${c.oggi} su ${s.alGiorno}`],
+    ['cliccati', 'Hanno cliccato', String(c.cliccati), percento(c.cliccati, c.inviati)],
+    ['entrati', 'Sono entrate', String(c.entrati), percento(c.entrati, c.inviati)],
+    ['promemoria', 'Promemoria', String(c.promemoria), `dopo ${s.promemoriaGiorni} giorni`],
+    ['coda', 'In coda', String(c.inCoda), giorni != null ? `circa ${giorni} giorni al ritmo attuale` : 'invio fermo'],
+    ['scartati', 'Non inviabili', String(c.scartati + c.falliti), `${c.scartati} scartati · ${c.falliti} falliti`],
   ];
 
   return (
@@ -137,12 +152,18 @@ export default function InvitoGaia() {
       {err && <div className="banner err" style={{ margin: '8px 0' }}>{err}</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginTop: 10 }}>
-        {tessere.map(([t, v, sotto]) => (
-          <div key={t} style={{ border: '1px solid var(--line)', borderRadius: 12, padding: '10px 12px', background: 'var(--card)' }}>
-            <div className="muted" style={{ fontSize: 11 }}>{t}</div>
+        {tessere.map(([tipo, t, v, sotto]) => (
+          <button
+            key={tipo}
+            type="button"
+            className="tessera-invito"
+            onClick={() => setAperto(tipo)}
+            title={`Apri l’elenco: ${t.toLowerCase()}`}
+          >
+            <div className="muted" style={{ fontSize: 11 }}>{t} <i className="ti ti-list-details" style={{ fontSize: 12 }} /></div>
             <div style={{ fontSize: 22, fontWeight: 700 }}>{v}</div>
             {sotto && <div className="muted" style={{ fontSize: 11 }}>{sotto}</div>}
-          </div>
+          </button>
         ))}
       </div>
 
@@ -172,6 +193,8 @@ export default function InvitoGaia() {
         Gli scartati sono lead senza un indirizzo valido, doppioni, già registrati o che hanno detto no: escono dalla coda.
       </p>
 
+      {aperto && <ElencoInvito tipo={aperto} onClose={() => setAperto(null)} />}
+
       {conferma && (
         <Modal title="Accendere l’invito a Gaia?" onClose={() => setConferma(false)}>
           <p style={{ marginTop: 0 }}>{testoAccensione(p)}</p>
@@ -183,5 +206,112 @@ export default function InvitoGaia() {
         </Modal>
       )}
     </div>
+  );
+}
+
+/**
+ * L'elenco dietro una casella (17/9): nome, cognome, email, la data che quella casella conta e il
+ * pulsante per la scheda. A pagine da 50, con la ricerca per nome o email. Negli inviti si può
+ * restringere a quelli di oggi.
+ */
+function ElencoInvito({ tipo: tipoIniziale, onClose }: { tipo: TipoElenco; onClose: () => void }) {
+  const [tipo, setTipo] = useState<TipoElenco>(tipoIniziale);
+  const [pagina, setPagina] = useState(1);
+  const [cerca, setCerca] = useState('');
+  const [cercaAttiva, setCercaAttiva] = useState('');
+  const [dati, setDati] = useState<Elenco | null>(null);
+  const [caricando, setCaricando] = useState(true);
+  const [errore, setErrore] = useState<string | null>(null);
+
+  // La ricerca parte quando si smette di scrivere, e riporta alla prima pagina.
+  useEffect(() => {
+    const t = setTimeout(() => { setCercaAttiva(cerca); setPagina(1); }, 350);
+    return () => clearTimeout(t);
+  }, [cerca]);
+
+  useEffect(() => {
+    let vivo = true;
+    setCaricando(true);
+    setErrore(null);
+    api<Elenco>(urlElenco(tipo, pagina, cercaAttiva))
+      .then((d) => { if (vivo) setDati(d); })
+      .catch((e) => { if (vivo) setErrore(e instanceof Error ? e.message : 'Elenco non disponibile.'); })
+      .finally(() => { if (vivo) setCaricando(false); });
+    return () => { vivo = false; };
+  }, [tipo, pagina, cercaAttiva]);
+
+  const info = ELENCHI[tipo];
+  const pagine = dati ? pagineTotali(dati.totale, dati.perPagina) : 1;
+  const conMotivo = tipo === 'scartati' || tipo === 'oggi';
+
+  return (
+    <Modal title={`${info.titolo}${dati ? ` · ${dati.totale.toLocaleString('it-IT')}` : ''}`} onClose={onClose} wide>
+      <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+        <input
+          className="input"
+          style={{ flex: 1, minWidth: 200 }}
+          placeholder="Cerca per nome, cognome o email"
+          value={cerca}
+          onChange={(e) => setCerca(e.target.value)}
+          autoFocus
+        />
+        {(tipo === 'inviati' || tipo === 'oggi') && (
+          <label className="row" style={{ gap: 6, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={tipo === 'oggi'} onChange={(e) => { setTipo(e.target.checked ? 'oggi' : 'inviati'); setPagina(1); }} />
+            Solo oggi
+          </label>
+        )}
+      </div>
+
+      {errore && <div className="banner err" style={{ marginBottom: 8 }}>{errore}</div>}
+
+      <div style={{ overflowX: 'auto', opacity: caricando ? 0.55 : 1, transition: 'opacity .15s' }}>
+        <table className="grid">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Cognome</th>
+              <th>Email</th>
+              <th>{info.colonnaData}</th>
+              {conMotivo && <th>Motivo</th>}
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {dati?.righe.map((r) => (
+              <tr key={r.recordId}>
+                <td>{r.nome || <span className="muted">—</span>}</td>
+                <td>{r.cognome || <span className="muted">—</span>}</td>
+                <td style={{ wordBreak: 'break-all' }}>{r.email || <span className="muted">—</span>}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>{dataBreve(r.quando)}</td>
+                {conMotivo && <td className="muted" style={{ fontSize: 12 }}>{r.motivo ?? ''}</td>}
+                <td style={{ textAlign: 'right' }}>
+                  <Link to={linkScheda(r)} className="btn ghost sm" style={{ whiteSpace: 'nowrap', textDecoration: 'none' }} onClick={onClose}>
+                    Scheda <i className="ti ti-arrow-right" />
+                  </Link>
+                </td>
+              </tr>
+            ))}
+            {dati && dati.righe.length === 0 && !caricando && (
+              <tr><td colSpan={conMotivo ? 6 : 5} className="muted" style={{ textAlign: 'center', padding: 24 }}>
+                {cercaAttiva.trim().length >= 2 ? 'Nessun risultato per questa ricerca.' : info.vuoto}
+              </td></tr>
+            )}
+            {!dati && caricando && (
+              <tr><td colSpan={conMotivo ? 6 : 5} className="muted" style={{ textAlign: 'center', padding: 24 }}>Caricamento…</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 12, gap: 8, flexWrap: 'wrap' }}>
+        <span className="muted" style={{ fontSize: 12 }}>Pagina {pagina} di {pagine}</span>
+        <div className="row" style={{ gap: 8 }}>
+          <button className="btn ghost sm" disabled={caricando || pagina <= 1} onClick={() => setPagina((p) => Math.max(1, p - 1))}>‹ Precedente</button>
+          <button className="btn ghost sm" disabled={caricando || pagina >= pagine} onClick={() => setPagina((p) => p + 1)}>Successiva ›</button>
+          <button className="btn sm" onClick={onClose}>Chiudi</button>
+        </div>
+      </div>
+    </Modal>
   );
 }
