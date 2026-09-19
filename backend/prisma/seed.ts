@@ -376,6 +376,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Varietà — giorni minimi prima che lo stesso piatto possa tornare nello stesso pasto: se il pool della dieta offre un\'alternativa entro la tolleranza kcal viene usata quella (0 = guard disattivato)',
   },
   {
+    key: 'menu_variety_famiglia_gap_days',
+    value: '1',
+    type: 'number',
+    description: 'Varietà — giorni minimi prima che torni nello stesso pasto un piatto con lo STESSO INGREDIENTE PRINCIPALE (19/9: «frittata due colazioni di fila è un errore»). 1 = non due giorni di fila; 0 = regola spenta. Se il pool non offre alternative il piatto resta.',
+  },
+  {
     key: 'menu_repeat_window_days',
     value: '14',
     type: 'number',

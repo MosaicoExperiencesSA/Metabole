@@ -125,6 +125,7 @@ const SENZA_NOME_OGGI = new Set<string>([
   'menu_select_w_grad',
   'menu_simple_recipes_enabled',
   'menu_state_boost',
+  'menu_variety_famiglia_gap_days',
   'menu_variety_min_gap_days',
   'menu_visible_days_before_return',
   'monitoring_duration_days',

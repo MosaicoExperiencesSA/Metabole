@@ -1,0 +1,51 @@
+Summary:
+Menu: niente due piatti dello stesso ingrediente principale due giorni di fila
+
+Description:
+Reclamo di Simone del 19/9: «frittata due colazioni di fila è un errore». Il 21 e il 22 settembre la
+stessa cliente ha ricevuto «Frittata con funghi e prezzemolo» e «Frittata con zucchine e formaggio».
+Il motore non aveva sbagliato: tutte le sue regole di varietà guardano il recipeId, e due frittate
+diverse sono due ricette diverse. Mancava la nozione di famiglia del piatto.
+
+La famiglia è l INGREDIENTE PRINCIPALE (decisione di Simone): quello che pesa di più, la stessa porta
+che decide se un piatto è di carne o di pesce. Così anche le uova strapazzate contano come frittata.
+
+Motore:
+- menu/famiglia-del-piatto.ts (nuovo): famigliaDelPiatto, stessaFamiglia, famigliaGiaVista.
+  Sinonimi uovo/uova/albume/albumi/tuorlo/frittata/omelette -> uova, yogurt/skyr, fiocchi/avena.
+  Confronto PER PAROLA e mai per sottostringa: «pepe» non è «peperoni», «mela» non è «melanzane».
+  Parole di stato e taglio (affumicato, grigliato, filetto, petto, olio...) non fanno famiglia:
+  «sgombro affumicato» e «salmone affumicato» restano due pesci diversi.
+- menu.service.ts: la famiglia di ogni ricetta del paniere è calcolata una volta sola
+  (famigliaOf nel contesto di punteggio); applyVarietyGuard scarta i candidati della stessa famiglia
+  dei giorni recenti e della stessa giornata; swapDislikedDishes (che gira per ULTIMO e altrimenti
+  avrebbe annullato la regola) sceglie il sostituto con lo stesso criterio.
+- lo storico dello slot ora si tiene per max(giorni varietà, giorni famiglia): con la sola regola
+  di famiglia accesa restava vuoto, e il ricambio non aveva niente da guardare.
+
+Parametro (mai hardcodato): menu_variety_famiglia_gap_days, 1 giorno, 0 la spegne, regolabile per
+dieta. Nel seed, nel catalogo delle regole (categoria «varieta», 0-7) e nell elenco delle etichette.
+
+Tre limiti voluti, scritti anche nella voce dei Lavori:
+- se il paniere non offre alternative il piatto RESTA: nessun pasto vuoto per una regola di varietà;
+- senza grammature la famiglia è «non lo so» e non blocca niente;
+- vale dai giorni nuovi; per quelli già erogati c è «Rigenera menu».
+
+Prove: famiglia-del-piatto.spec.ts nuovo (11 casi, comprese le due frittate del reclamo), 5 casi
+nuovi nel motore (due frittate, storico già erogato, paniere senza alternative, regola spenta,
+piatto senza grammature) e uno sul ricambio dei non graditi. Le due sentinelle di se-degradi-dillo
+seguono la finestra nuova. Backend 8584 prove, 498 suite, nest build verde.
+
+File:
+backend/src/menu/famiglia-del-piatto.ts (nuovo)
+backend/src/menu/famiglia-del-piatto.spec.ts (nuovo)
+backend/src/menu/menu.service.ts
+backend/src/menu/menu.service.spec.ts
+backend/src/menu/se-degradi-dillo.spec.ts
+backend/prisma/seed.ts
+backend/src/engine-rules/engine-rules.catalog.ts
+backend/src/config-params/parametri-tutti-etichettati.spec.ts
+backend/src/lavori/voci-iniziali.ts
+progetto/REGISTRO.md
+
+Niente migrazioni. Nessuna dipendenza nuova. Niente app.

@@ -6,6 +6,7 @@ import { poolDalPassato, type GiornataDelPassato } from '../catalog/pool-dal-pas
 import { GIORNI_DELLA_FINESTRA, carneRestante } from './carne-quante-volte';
 import { verdettoPescetariano } from '../catalog/paniere-pescetariano';
 import { coppiaDellaGiornata } from './coppia-pranzo-cena';
+import { famigliaDelPiatto, famigliaGiaVista } from './famiglia-del-piatto';
 import { slotDaComporre } from './struttura-della-giornata';
 import { leggiSorgente, poolPerSlot, ricetteDelPool, righeDalPaniere, righeDalleGiornate } from '../catalog/pool-del-paniere';
 import { FAMIGLIA_RITORNO_IN_EQUILIBRIO, paniereDellaVariante } from '../catalog/appartenenza-panieri';
@@ -1347,6 +1348,14 @@ export class MenuService {
     // la tolleranza kcal, si usa quella. 0 = guard disattivato.
     const varietyGapG = await this.configParams.getNumber('menu_variety_min_gap_days', 2);
     const varietyGap = pickNumOverride(overrides, 'menu_variety_min_gap_days', varietyGapG);
+    /**
+     * ⛔ **VARIETÀ DI FAMIGLIA** (Simone, 19/9: *«frittata due colazioni di fila è un errore»*).
+     * La regola qui sopra guarda il PIATTO: due frittate diverse la rispettano. Questa guarda
+     * l'INGREDIENTE PRINCIPALE — le uova — e in quanti giorni non deve tornare nello stesso pasto.
+     * 1 = non due giorni di fila. 0 = spenta. Vedi `famiglia-del-piatto.ts`.
+     */
+    const famigliaGapG = await this.configParams.getNumber('menu_variety_famiglia_gap_days', 1);
+    const famigliaGap = pickNumOverride(overrides, 'menu_variety_famiglia_gap_days', famigliaGapG);
     const kcalTolPct = pickNumOverride(overrides, 'menu_kcal_balance_tolerance_pct', kcalTolG);
     const daycomboEnabled = pickBoolOverride(overrides, 'menu_daycombo_enabled', daycomboG);
     const kcalNeedEnabled = pickBoolOverride(overrides, 'menu_kcal_need_enabled', kcalNeedG);
@@ -1390,7 +1399,16 @@ export class MenuService {
 
     // Storico recente per slot (giorni già erogati): serve al guard di varietà per non
     // riproporre lo stesso piatto a ridosso di quando è già stato servito.
-    const slotHistory = varietyGap > 0 ? await this.recentSlotHistory(clientId, firstNewDate, varietyGap) : new Map<string, string[]>();
+    const finestraStorico = Math.max(varietyGap, famigliaGap);
+    const slotHistory = finestraStorico > 0 ? await this.recentSlotHistory(clientId, firstNewDate, finestraStorico) : new Map<string, string[]>();
+    /**
+     * Le famiglie (ingrediente principale) delle ricette che servono alla guardia: quelle del pool e
+     * quelle dei giorni già erogati che stanno nello storico. Si legge **una volta**, non per giornata.
+     */
+    const famiglie = famigliaGap > 0
+      ? await this.famiglieDelleRicette([...(ctx?.famigliaOf.keys() ?? []), ...[...slotHistory.values()].flat()], ctx?.famigliaOf)
+      : new Map<string, string | null>();
+    const famigliaDi = (id: string) => famiglie.get(id) ?? null;
     /**
      * ⚠️ Le coppie pranzo/cena già servite. Si legge **prima** del ciclo e si aggiorna man mano: le
      * giornate che sto componendo adesso non sono ancora in `menu_day`, e senza aggiungerle il
@@ -1511,8 +1529,8 @@ export class MenuService {
       }
       // VARIETÀ: niente stesso piatto nello stesso slot a meno di `varietyGap` giorni, se il
       // pool della dieta offre un'alternativa entro la tolleranza kcal (bilanciamento salvo).
-      chosen = this.applyVarietyGuard(chosen, slotHistory, ctxGiorno, kcalTolPct / 100, varietyGap);
-      this.pushSlotHistory(slotHistory, chosen, varietyGap);
+      chosen = this.applyVarietyGuard(chosen, slotHistory, ctxGiorno, kcalTolPct / 100, varietyGap, { gap: famigliaGap, famigliaDi });
+      this.pushSlotHistory(slotHistory, chosen, finestraStorico);
       /**
        * ⚠️ **Dopo** la guardia di varietà, non prima: quella può cambiare il pranzo o la cena, e la
        * coppia da ricordare è quella che la cliente riceve davvero, non quella che avevamo scelto.
@@ -1630,8 +1648,10 @@ export class MenuService {
     if (dislikedNow.length) {
       // Lo storico riparte dai giorni GIÀ erogati e si aggiorna giorno per giorno, come nel
       // ciclo di composizione: senza, ogni giorno riceverebbe lo stesso identico sostituto.
-      const swapHistory = varietyGap > 0
-        ? await this.recentSlotHistory(clientId, firstNewDate, varietyGap)
+      // ⚠️ `finestraStorico` e non `varietyGap`: con la sola regola di FAMIGLIA accesa (19/9) lo
+      // storico serve lo stesso, e restando legato al vecchio parametro il ricambio sceglieva alla cieca.
+      const swapHistory = finestraStorico > 0
+        ? await this.recentSlotHistory(clientId, firstNewDate, finestraStorico)
         : new Map<string, string[]>();
       /**
        * ⚠️ Il piatto di partenza di ogni pasto, per sapere dopo **quali** sono cambiati davvero.
@@ -1643,8 +1663,8 @@ export class MenuService {
       for (const day of daySnapshots) for (const m of day.meals) primaDelloSwap.set(m, m.recipeId);
       let cambiati = 0;
       for (const day of daySnapshots) {
-        cambiati += (await this.swapDislikedDishes(clientId, day.meals, dislikedNow, ctx?.slotPool, swapHistory)).length;
-        this.pushSlotHistory(swapHistory, day.meals, varietyGap);
+        cambiati += (await this.swapDislikedDishes(clientId, day.meals, dislikedNow, ctx?.slotPool, swapHistory, { gap: famigliaGap, famigliaDi })).length;
+        this.pushSlotHistory(swapHistory, day.meals, finestraStorico);
       }
       /**
        * ⛔ **IL PIATTO SCAMBIATO RIPASSA DALLA SICUREZZA** (31/8). Lo swap sceglie un piatto che non
@@ -2581,6 +2601,11 @@ export class MenuService {
      * aggirabile da qualunque ricetta con gli ingredienti scritti male.
      */
     carne: Map<string, boolean>;
+    /**
+     * ⚠️ **La famiglia del piatto: il suo ingrediente principale** (19/9). `null` = non si sa (le
+     * grammature non ci sono), e un «non lo so» non blocca niente. Vedi `famiglia-del-piatto.ts`.
+     */
+    famigliaOf: Map<string, string | null>;
     score: (id: string) => number;
     bump: (id: string) => void;
   } | null> {
@@ -2900,7 +2925,14 @@ export class MenuService {
       carne.set(r.id, verdettoPescetariano(r.name, nomi) === 'carne');
     }
 
-    return { slotPool, kcalOf, proteinOf, carne, score, bump };
+    /**
+     * ⚠️ La famiglia (ingrediente principale) si calcola **una volta per pool**, come il verdetto
+     * sulla carne: gli stessi ingredienti riletti sette volte sono lavoro sprecato.
+     */
+    const famigliaOf = new Map<string, string | null>();
+    for (const r of recipes) famigliaOf.set(r.id, famigliaDelPiatto(r.ingredients));
+
+    return { slotPool, kcalOf, proteinOf, carne, famigliaOf, score, bump };
   }
 
   /**
@@ -3121,6 +3153,22 @@ export class MenuService {
     return out;
   }
 
+  /**
+   * Le famiglie delle ricette chieste: quelle già calcolate per il pool si riusano, le altre — i
+   * piatti dei giorni GIÀ EROGATI, che nel pool possono non esserci più — si leggono qui.
+   */
+  private async famiglieDelleRicette(ids: readonly string[], gia?: Map<string, string | null>): Promise<Map<string, string | null>> {
+    const out = new Map<string, string | null>(gia ?? []);
+    const mancanti = [...new Set(ids)].filter((id) => id && !out.has(id));
+    if (!mancanti.length) return out;
+    const righe = (await this.prisma.recipe.findMany({
+      where: { id: { in: mancanti } },
+      select: { id: true, ingredients: true },
+    })) as { id: string; ingredients: unknown }[];
+    for (const r of righe) out.set(r.id, famigliaDelPiatto(r.ingredients));
+    return out;
+  }
+
   /** Aggiunge il giorno appena composto in testa allo storico (finestra `gapDays`). */
   private pushSlotHistory(history: Map<string, string[]>, meals: { slot: string; recipeId: string }[], gapDays: number): void {
     if (gapDays <= 0) return;
@@ -3144,15 +3192,37 @@ export class MenuService {
     ctx: { slotPool: Map<string, Set<string>>; kcalOf: Map<string, number>; score: (id: string) => number } | null,
     tol: number,
     gapDays: number,
+    /**
+     * ⛔ **La famiglia: l'ingrediente principale** (19/9). `gap` = per quanti giorni non deve tornare
+     * nello stesso pasto (0 = regola spenta). Vedi `famiglia-del-piatto.ts`.
+     */
+    famiglia?: { gap: number; famigliaDi: (recipeId: string) => string | null },
   ): { slot: string; recipeId: string }[] {
-    if (!ctx || gapDays <= 0) return chosen;
+    const famigliaGap = famiglia && famiglia.gap > 0 ? famiglia.gap : 0;
+    if (!ctx || (gapDays <= 0 && famigliaGap <= 0)) return chosen;
     const usedToday = new Set<string>(); // nessun piatto due volte nella stessa giornata
+    const famiglieOggi: (string | null)[] = []; // e nemmeno due piatti della stessa famiglia
     return chosen.map((m) => {
-      const recent = history.get(m.slot) ?? [];
+      const recent = gapDays > 0 ? (history.get(m.slot) ?? []).slice(0, gapDays) : [];
       const pool = ctx.slotPool.get(m.slot);
       const baseKcal = ctx.kcalOf.get(m.recipeId);
-      const keep = () => { usedToday.add(m.recipeId); return m; };
-      if (!recent.includes(m.recipeId) && !usedToday.has(m.recipeId)) return keep();
+      /** Le famiglie servite di recente in questo pasto, più quelle già usate oggi. */
+      const famiglieVietate = famigliaGap > 0
+        ? [
+            ...(history.get(m.slot) ?? []).slice(0, famigliaGap).map((id) => famiglia!.famigliaDi(id)),
+            ...famiglieOggi,
+          ]
+        : [];
+      const famigliaDiQuesto = famigliaGap > 0 ? famiglia!.famigliaDi(m.recipeId) : null;
+      const keep = () => {
+        usedToday.add(m.recipeId);
+        if (famigliaGap > 0) famiglieOggi.push(famigliaDiQuesto);
+        return m;
+      };
+      const vaCambiato = recent.includes(m.recipeId)
+        || usedToday.has(m.recipeId)
+        || (famigliaGap > 0 && famigliaGiaVista(famigliaDiQuesto, famiglieVietate));
+      if (!vaCambiato) return keep();
       if (!pool || baseKcal == null) return keep();
       const lo = baseKcal * (1 - tol);
       const hi = baseKcal * (1 + tol);
@@ -3160,13 +3230,21 @@ export class MenuService {
       let bestScore = -Infinity;
       for (const cand of pool) {
         if (cand === m.recipeId || usedToday.has(cand) || recent.includes(cand)) continue;
+        // ⚠️ Una famiglia sconosciuta (grammature mancanti) non blocca niente: `famigliaGiaVista` è falsa.
+        if (famigliaGap > 0 && famigliaGiaVista(famiglia!.famigliaDi(cand), famiglieVietate)) continue;
         const ck = ctx.kcalOf.get(cand);
         if (ck == null || ck < lo || ck > hi) continue; // vincolo bilanciamento
         const s = ctx.score(cand);
         if (s > bestScore) { bestScore = s; bestId = cand; }
       }
+      /**
+       * ⛔ **Se il pool non offre altro, il piatto RESTA** — come la coppia pranzo/cena e i piatti
+       * doppi: una regola di varietà non lascia mai un pasto vuoto. Con tre sole colazioni in
+       * catalogo la risposta è aggiungere ricette, non togliere la colazione.
+       */
       if (!bestId) return keep();
       usedToday.add(bestId);
+      if (famigliaGap > 0) famiglieOggi.push(famiglia!.famigliaDi(bestId));
       return { slot: m.slot, recipeId: bestId };
     });
   }
@@ -3233,6 +3311,12 @@ export class MenuService {
     dislikes: string[],
     dietPool?: Map<string, Set<string>>,
     history?: Map<string, string[]>,
+    /**
+     * ⛔ **Anche il ricambio rispetta la famiglia** (19/9). Questo passaggio gira PER ULTIMO e
+     * riscrive i pasti già composti: se la guardia di varietà evita la seconda frittata e poi qui
+     * ne entra un'altra, la regola non esiste. È lo stesso motivo per cui `history` è già qui.
+     */
+    famiglia?: { gap: number; famigliaDi: (recipeId: string) => string | null },
   ): Promise<{ from: string; to: string }[]> {
     const dl = dislikes.map((s) => s.toLowerCase().trim()).filter((s) => s.length >= 2);
     if (!dl.length) return [];
@@ -3372,7 +3456,16 @@ export class MenuService {
       // 3) A parità di idoneità si scarta ciò che è già stato servito di recente in questo
       //    pasto; se è recente tutto quanto, si ripiega sull'intero livello.
       const recent = new Set(history?.get(m.slot) ?? []);
-      const fresh = tier.filter((c) => !recent.has(c.id));
+      const famigliaGap = famiglia && famiglia.gap > 0 ? famiglia.gap : 0;
+      const famiglieVietate = famigliaGap > 0
+        ? (history?.get(m.slot) ?? []).slice(0, famigliaGap).map((id) => famiglia!.famigliaDi(id))
+        : [];
+      const fresh = tier.filter(
+        (c) => !recent.has(c.id)
+          && !(famigliaGap > 0 && famigliaGiaVista(famigliaDelPiatto(c.ingredients), famiglieVietate)),
+      );
+      // ⚠️ Se è «recente» tutto quanto si ripiega sul livello intero: un piatto non gradito va
+      // comunque tolto, e una regola di varietà non è una ragione per lasciarglielo.
       const candidates = fresh.length ? fresh : tier;
       /**
        * ⚠️ Fra i servibili si preferiscono i **puliti**: nessuna sostituzione da fare e ingredienti

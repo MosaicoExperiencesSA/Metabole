@@ -18,6 +18,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-19
+
+- `[Sviluppo]` ⛔ **Due frittate di fila.** Reclamo di Simone del 19/9: il 21 e il 22 settembre la stessa
+  cliente si è vista «Frittata con funghi e prezzemolo» e «Frittata con zucchine e formaggio». Il motore
+  **non aveva sbagliato**: tutte le sue regole di varietà guardano il `recipeId`, e due frittate diverse
+  sono due ricette diverse. Mancava la nozione di **famiglia del piatto**, che Simone ha deciso essere
+  **l'ingrediente principale** — la stessa porta che dice se un piatto è di carne o di pesce. Così anche
+  le uova strapazzate contano come frittata. Nuovo `menu/famiglia-del-piatto.ts` (sinonimi uovo/albume/
+  tuorlo/frittata/omelette → uova, yogurt/skyr, fiocchi/avena; confronto **per parola**, mai per
+  sottostringa: «pepe» non è «peperoni», e «sgombro affumicato» non è «salmone affumicato»). La regola
+  vale in composizione **e** nel ricambio dei piatti non graditi, che gira per ultimo e altrimenti
+  l'avrebbe annullata. Parametro `menu_variety_famiglia_gap_days` (1 giorno, 0 = spenta, regolabile per
+  dieta). ⚠️ Tre limiti scritti anche nei Lavori: se il paniere non offre alternative **il piatto resta**
+  (nessun pasto vuoto per una regola di varietà), senza grammature la famiglia è «non lo so» e non blocca
+  niente, e vale dai giorni nuovi — per quelli già erogati c'è «Rigenera menu». Niente migrazioni.
+
+---
+
 ## 2026-09-17
 
 - `[Sviluppo]` 📋 **Invito a Gaia: le caselle del pannello aprono l'elenco.** Richiesta di Simone del 17/9. Toccando

@@ -1165,7 +1165,11 @@ describe('MenuService — regola ripetizione bigiornaliera (menu_repeat_two_days
     };
     const config = {
       getString: jest.fn(async (_k: string, d?: string) => d),
-      getNumber: jest.fn((k: string, def?: number) => Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, repeat_twin_kcal_tolerance_pct: 15, menu_penalty_repeat: 0, menu_variety_min_gap_days: 0 } as Record<string, number>)[k] ?? def)),
+      getNumber: jest.fn((k: string, def?: number) => Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, repeat_twin_kcal_tolerance_pct: 15, menu_penalty_repeat: 0, menu_variety_min_gap_days: 0,
+        // ⚠️ Anche la varietà di FAMIGLIA è spenta (19/9): questi casi misurano la regola
+        // bigiornaliera da sola, e r1/r2 sono due ricette dello stesso alimento — che è proprio
+        // quello che la regola di famiglia cambierebbe.
+        menu_variety_famiglia_gap_days: 0 } as Record<string, number>)[k] ?? def)),
       getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
     };
     const events = { activePausePeriod: jest.fn().mockResolvedValue(null), pausaAppenaFinita: jest.fn().mockResolvedValue(null) };
@@ -1366,6 +1370,118 @@ describe('MenuService — garanzia di varietà (menu_variety_min_gap_days)', () 
   });
 });
 
+/**
+ * ⛔ **«FRITTATA DUE COLAZIONI DI FILA È UN ERRORE»** — Simone, 19/9.
+ *
+ * Il 21 e il 22 settembre una cliente ha ricevuto «Frittata con funghi» e «Frittata con zucchine»:
+ * due `recipeId` diversi, quindi per la garanzia di varietà qui sopra era tutto a posto. La regola
+ * nuova guarda l'INGREDIENTE PRINCIPALE — le uova — e sta in `menu_variety_famiglia_gap_days`.
+ */
+describe('MenuService — stessa famiglia due giorni di fila (menu_variety_famiglia_gap_days)', () => {
+  const today = giornoLocale(new Date());
+  const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
+  const ing = (righe: [string, number][]) => righe.map(([name, qty]) => ({ name, qty, unit: 'g' }));
+  const macros = { protein_g: 25, carbs_g: 35, fat_g: 14 };
+  /** Le due frittate vere del reclamo, più una colazione di un'altra famiglia, tutte a 400 kcal. */
+  const RICETTE = {
+    funghi: { id: 'f1', name: 'Frittata con funghi e prezzemolo', kcal: 400, macros, ingredients: ing([['Uova', 150], ['Funghi', 80]]) },
+    zucchine: { id: 'f2', name: 'Frittata con zucchine e formaggio', kcal: 400, macros, ingredients: ing([['Uova', 150], ['Zucchine', 100]]) },
+    salmone: { id: 's1', name: 'Salmone affumicato e avocado', kcal: 400, macros, ingredients: ing([['Salmone', 120], ['Avocado', 60]]) },
+  };
+  const tmpl = (dayIndex: number, c: string) => ({
+    dayIndex,
+    level: 1,
+    meals: [{ slot: 'breakfast', recipeId: c }, { slot: 'lunch', recipeId: 'l-fisso' }, { slot: 'dinner', recipeId: 'd-fisso' }],
+  });
+
+  /**
+   * ⚠️ **Il pool nasce dalle GIORNATE della dieta**, non dal catalogo: una ricetta che non sta in
+   * nessun template non è un'alternativa possibile. Per questo i giorni della dieta sono tre.
+   */
+  function build(famigliaGap: number, giornate: string[], ricette: object[], recentBreakfast: string[] = []) {
+    const prisma: any = {
+      productRule: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+      equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ planStartDate: DD(today), regime: 'pescetarian', dietStyle: 'mediterranean', mealsPerDay: 5, intolerances: [], dislikedFoods: [], assignedNutritionistId: null }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
+      menuDay: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockImplementation(async (arg: any) =>
+          arg?.select?.date ? [] : recentBreakfast.map((r) => ({ meals: [{ slot: 'breakfast', recipeId: r }] }))),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+      dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
+      measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }), count: jest.fn().mockResolvedValue(1) },
+      engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
+      diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1', objective: 'dimagrimento' }) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue(giornate.map((c, i) => tmpl(i + 1, c))) },
+      recipe: { findMany: jest.fn().mockResolvedValue(comeDalDatabase(ricette)), findUnique: jest.fn() },
+      // f1 ha efficacia alta: senza la regola vincerebbe, e comunque il template del 2° giorno è f2.
+      menuWeight: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'f1', score: 5, samples: 5 }]) },
+      recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
+    };
+    const config = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
+      getNumber: jest.fn((k: string, def?: number) => Promise.resolve(({
+        menu_days_delivered: 2,
+        menu_visible_days_before_start: 2,
+        menu_penalty_repeat: 0,
+        // ⚠️ La garanzia sul PIATTO è spenta: qui si misura solo quella sulla famiglia.
+        menu_variety_min_gap_days: 0,
+        menu_variety_famiglia_gap_days: famigliaGap,
+      } as Record<string, number>)[k] ?? def)),
+      getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
+    };
+    const events = { activePausePeriod: jest.fn().mockResolvedValue(null), pausaAppenaFinita: jest.fn().mockResolvedValue(null) };
+    const dietAgent = { stateFor: jest.fn().mockResolvedValue('normale') };
+    const { DayComboService } = require('./day-combo.service');
+    const service = new MenuService(prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService, events as any, dietAgent as any, new DayComboService(), kcalNeedStub(), pushStub());
+    return { service, prisma };
+  }
+
+  const colazioni = (prisma: any) =>
+    prisma.menuDay.upsert.mock.calls.map((c: any) => (c[0].create.meals as { slot: string; recipeId: string }[]).find((m) => m.slot === 'breakfast')?.recipeId);
+
+  it('⛔ due frittate di fila non escono più: il secondo giorno cambia famiglia', async () => {
+    const { service, prisma } = build(1, ['f1', 'f2', 's1'], [RICETTE.funghi, RICETTE.zucchine, RICETTE.salmone]);
+    await service.deliverIfEligible('u1');
+    expect(colazioni(prisma)).toEqual(['f1', 's1']);
+  });
+
+  it('tiene conto dei giorni GIÀ erogati: se ieri c\'era una frittata, oggi no', async () => {
+    const { service, prisma } = build(1, ['f1', 'f2', 's1'], [RICETTE.funghi, RICETTE.zucchine, RICETTE.salmone], ['f2']);
+    await service.deliverIfEligible('u1');
+    expect(colazioni(prisma)[0]).toBe('s1');
+  });
+
+  it('⚠️ se il pool non offre altro il piatto RESTA: nessun pasto vuoto per una regola di varietà', async () => {
+    const { service, prisma } = build(1, ['f1', 'f2'], [RICETTE.funghi, RICETTE.zucchine]);
+    await service.deliverIfEligible('u1');
+    // Solo due frittate in catalogo: la colazione arriva lo stesso (qui vince il punteggio di f1).
+    expect(colazioni(prisma)).toEqual(['f1', 'f1']);
+  });
+
+  it('regola spenta (0): comportamento di prima', async () => {
+    const { service, prisma } = build(0, ['f1', 'f2', 's1'], [RICETTE.funghi, RICETTE.zucchine, RICETTE.salmone]);
+    await service.deliverIfEligible('u1');
+    // Senza la regola vince il punteggio, e f1 vince tutti i giorni: è esattamente il reclamo.
+    expect(colazioni(prisma)).toEqual(['f1', 'f1']);
+  });
+
+  it('⚠️ senza grammature non si sa la famiglia, e un «non lo so» non cambia niente', async () => {
+    const senzaGrammi = [
+      { ...RICETTE.funghi, ingredients: [{ name: 'Uova' }, { name: 'Funghi' }] },
+      { ...RICETTE.zucchine, ingredients: [{ name: 'Uova' }, { name: 'Zucchine' }] },
+      RICETTE.salmone,
+    ];
+    const { service, prisma } = build(1, ['f1', 'f2', 's1'], senzaGrammi);
+    await service.deliverIfEligible('u1');
+    expect(colazioni(prisma)).toEqual(['f1', 'f1']);
+  });
+});
+
 // La sostituzione dei cibi NON GRADITI è l'ULTIMO passaggio prima del salvataggio: riscrive i
 // pasti già composti, quindi due suoi difetti annullavano tutto il lavoro fatto a monte.
 // (1) Pescava dall'intero catalogo filtrato per il `regime` REGISTRATO sulla cliente, non dal
@@ -1383,7 +1499,7 @@ describe('MenuService — sostituzione dei non graditi dentro il pool della diet
   const today = giornoLocale(new Date());
   const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
   const macros = { protein_g: 25, carbs_g: 35, fat_g: 14 };
-  const R = (id: string, name: string, kcal: number) => ({ id, name, kcal, macros, mealSlot: 'breakfast', ingredients: [], active: true, difficulty: 'media' });
+  const R = (id: string, name: string, kcal: number, ingredients: object[] = []) => ({ id, name, kcal, macros, mealSlot: 'breakfast', ingredients, active: true, difficulty: 'media' });
   // Pool della dieta: i due piatti del piano contengono "avena" (non gradita) e vanno cambiati;
   // a2/a3 sono le uniche alternative del pool, identiche in kcal fra loro e LONTANE dai piatti
   // del piano — così restano fuori dalla banda del compositore e a toccarle è solo lo swap.
@@ -1474,6 +1590,31 @@ describe('MenuService — sostituzione dei non graditi dentro il pool della diet
     const b = breakfastsOf(prisma);
     // ← senza lo storico: 'a2','a2' — a parità di kcal vince sempre lo stesso id.
     expect(b[0]).not.toBe(b[1]);
+  });
+
+  /**
+   * ⛔ **Anche il ricambio rispetta la famiglia** (19/9). Questo passaggio gira per ULTIMO e
+   * riscrive i pasti: se la guardia di varietà evita la seconda frittata e poi il ricambio ne
+   * mette un'altra, la regola non esiste.
+   */
+  it('⛔ il sostituto non è della stessa famiglia di ieri', async () => {
+    const g = (nome: string, grammi: number) => ({ name: nome, qty: grammi, unit: 'g' });
+    const { service, prisma } = build(0); // varietà sul PIATTO spenta: qui conta solo la famiglia
+    prisma.recipe.findMany.mockImplementation(async (arg: any) => {
+      const conUova = [
+        R('d1', 'Porridge di avena e frutti di bosco', 400, [g('Avena', 80), g('Frutti di bosco', 60)]),
+        R('d2', 'Barretta di avena, miele e mandorle', 400, [g('Avena', 70), g('Miele', 20)]),
+        R('a2', 'Frittata di albumi e spinaci', 300, [g('Albumi', 150), g('Spinaci', 80)]),
+        R('a3', 'Yogurt greco con mirtilli', 300, [g('Yogurt greco', 170), g('Mirtilli', 50)]),
+      ];
+      const ids = arg?.where?.id?.in as string[] | undefined;
+      return ids ? conUova.filter((r) => ids.includes(r.id)) : [R('x1', 'Bresaola, grana e rucola', 400, [g('Bresaola', 80)])];
+    });
+    // Ieri a colazione c'erano le uova: oggi il ricambio deve scegliere lo yogurt.
+    prisma.menuDay.findMany.mockImplementation(async (arg: any) =>
+      (arg?.select?.date ? [] : [{ meals: [{ slot: 'breakfast', recipeId: 'a2' }] }]));
+    await service.deliverIfEligible('u1');
+    expect(breakfastsOf(prisma)[0]).toBe('a3');
   });
 
   it('il catalogo resta la rete di sicurezza quando la dieta non offre alternative', async () => {

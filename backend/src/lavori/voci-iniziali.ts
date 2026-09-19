@@ -7496,4 +7496,27 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'Rotta `GET /marketing/invito-gaia/elenco` con le guardie della pagina Marketing. Niente migrazioni.',
   },
 
+  {
+    chiave: 'due-frittate-di-fila',
+    fatta: true,
+    categoria: SIMONE,
+    ordine: 1,
+    nata: '2026-09-19T10:00',
+    titolo: '⛔ Due frittate a colazione in due giorni di fila: il motore le vedeva come piatti diversi',
+    dettaglio:
+      'Simone, 19/9, guardando il menu di una cliente (21 e 22 settembre): *«frittata due colazioni di fila è un errore»*. '
+      + '«Frittata con funghi» e «Frittata con zucchine» sono due ricette diverse, quindi tutte le regole di varietà — che '
+      + 'guardano il `recipeId` — erano rispettate. Mancava l\'idea che due piatti possano essere **la stessa cosa nel piatto**.\n\n'
+      + '✅ **FATTO (19/9)**: la famiglia di un piatto è il suo **ingrediente principale** (scelta di Simone), cioè quello che '
+      + 'pesa di più — la stessa porta che decide se un piatto è di carne o di pesce. Così due frittate sono «uova», e lo sono '
+      + 'anche le uova strapazzate. Parametro nuovo `menu_variety_famiglia_gap_days` (1 = non due giorni di fila, 0 = spenta, '
+      + 'regolabile per dieta da Regole motore → Varietà). La regola vale nella composizione **e** nel ricambio dei piatti non '
+      + 'graditi, che gira per ultimo.\n\n'
+      + '⚠️ **Se il pool non offre alternative il piatto resta**: una regola di varietà non lascia un pasto vuoto. Con poche '
+      + 'colazioni in catalogo la risposta è aggiungere ricette.\n'
+      + '⚠️ **Senza grammature non si conosce la famiglia** e la regola non si applica a quel piatto: le ricette scritte senza '
+      + 'pesi restano scoperte (si contano con `npm run diag:varieta`).\n'
+      + '⚠️ Vale dai **giorni nuovi**: i menu già erogati non si riscrivono da soli, per quelli c\'è «Rigenera menu».',
+  },
+
 ];

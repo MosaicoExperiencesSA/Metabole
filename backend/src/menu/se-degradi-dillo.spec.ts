@@ -108,7 +108,7 @@ describe('la coppia pranzo/cena non si ripete, e quando si ripete lo dice', () =
    * mangiato, e lasciar tornare quella vera.
    */
   it('⛔ si ricorda la coppia servita, non quella scelta', () => {
-    const dopo = src.slice(src.indexOf('this.pushSlotHistory(slotHistory, chosen, varietyGap);'));
+    const dopo = src.slice(src.indexOf('this.pushSlotHistory(slotHistory, chosen, finestraStorico);'));
     expect(dopo.slice(0, 600)).toMatch(/coppieGiaViste\.add\(coppia\)/);
   });
 
@@ -143,7 +143,7 @@ describe('la carne è limitata, e quando si sfora lo dice', () => {
    * si contasse quella scelta, il conteggio direbbe una cosa e il piatto un'altra.
    */
   it('⛔ si conta la carne servita, non quella scelta', () => {
-    const dopo = src.slice(src.indexOf('this.pushSlotHistory(slotHistory, chosen, varietyGap);'));
+    const dopo = src.slice(src.indexOf('this.pushSlotHistory(slotHistory, chosen, finestraStorico);'));
     expect(dopo.slice(0, 1200)).toMatch(/giornateConCarne\.push\(/);
   });
 
