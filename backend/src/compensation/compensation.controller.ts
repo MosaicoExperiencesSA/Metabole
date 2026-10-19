@@ -1,8 +1,9 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { RequirePage } from '../common/decorators/require-page.decorator';
-import { confineMese } from '../common/date-only';
+import { confineMese, meseLocale } from '../common/date-only';
 import { CATEGORIE_COMPENSO, tettoAttivoCents } from '../common/tetto-compensi';
 import { PrismaService } from '../prisma/prisma.service';
+import { pagatoNelPeriodo } from './pagato-per-mese';
 
 /**
  * Compensi staff: aggrega dal registro contabile (LedgerEntry) quanto spetta a ciascuno,
@@ -71,6 +72,29 @@ export class CompensationController {
     // bugia — quindi lì non si dice niente.
     const unMeseSolo = !!period && /^\d{4}-\d{2}$/.test(period);
 
+    /**
+     * Pagato e da pagare (19/10, «le ho pagate a stella ma non le ha scalate»). Servono TUTTI i
+     * mesi della persona, non solo quello guardato: un pagamento copre prima i mesi più vecchi
+     * (`pagato-per-mese.ts`), e per sapere quanto ne avanza per ottobre bisogna sapere quanto
+     * hanno preso agosto e settembre.
+     */
+    const ids = Array.from(agg.keys());
+    const [storico, pagamenti] = await Promise.all([
+      this.prisma.ledgerEntry.findMany({
+        where: { type: 'expense' as never, category: { in: CATEGORIE_COMPENSO }, staffId: { in: ids } },
+        select: { staffId: true, amountCents: true, date: true },
+      }) as unknown as Promise<{ staffId: string; amountCents: number; date: Date }[]>,
+      this.prisma.commissionWithdrawal.groupBy({ by: ['staffId'], where: { status: 'paid', staffId: { in: ids } }, _sum: { amountCents: true } }) as unknown as Promise<{ staffId: string; _sum: { amountCents: number | null } }[]>,
+    ]);
+    const mesiDi = new Map<string, Map<string, number>>();
+    for (const e of storico) {
+      const mesi = mesiDi.get(e.staffId) ?? new Map<string, number>();
+      const m = meseLocale(e.date);
+      mesi.set(m, (mesi.get(m) ?? 0) + e.amountCents);
+      mesiDi.set(e.staffId, mesi);
+    }
+    const pagatoDi = new Map(pagamenti.map((p) => [p.staffId, p._sum.amountCents ?? 0]));
+
     return Array.from(agg.entries())
       .map(([staffId, v]) => {
         const capCents = tettoAttivoCents(staffMap.get(staffId)?.earningsCapCents);
@@ -81,6 +105,10 @@ export class CompensationController {
           commissionCents: v.commission,
           compensationCents: v.compensation,
           totalCents: v.total,
+          ...(() => {
+            const p = pagatoNelPeriodo(mesiDi.get(staffId) ?? new Map(), pagatoDi.get(staffId) ?? 0, unMeseSolo ? (period as string) : null);
+            return { paidCents: p.pagatoCents, dueCents: p.daPagareCents };
+          })(),
           capCents,
           capReached: capCents !== null && unMeseSolo ? v.total >= capCents : null,
         };

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { ROLE_LABEL } from '../lib/labels';
 import { Banner, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
@@ -12,6 +13,12 @@ interface CompRow {
   commissionCents: number;
   compensationCents: number;
   totalCents: number;
+  /**
+   * Quanto di questo maturato è già stato pagato, e quanto resta (19/10). I pagamenti coprono
+   * prima i mesi più vecchi: lo decide il server (`pagato-per-mese.ts`), qui non si ricalcola.
+   */
+  paidCents: number;
+  dueCents: number;
   /** Tetto mensile di questa persona (§16.8), null se non ne ha. */
   capCents: number | null;
   /** Vero/falso solo guardando UN mese; null col filtro su «Tutto», dove non vorrebbe dire niente. */
@@ -19,7 +26,10 @@ interface CompRow {
 }
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
+// Le etichette comuni da `labels.ts` (lì c'è anche «Coordinatrice Coach», che qui mancava e usciva
+// grezza come coach_coordinator); sotto, quelle che questa pagina dice a modo suo.
 const ROLE: Record<string, string> = {
+  ...ROLE_LABEL,
   coach: 'Coach',
   manager_coach: 'Manager coach',
   nutritionist: 'Nutrizionista',
@@ -68,6 +78,8 @@ export function Compensi() {
     { chiave: 'provvigioni', titolo: 'Provvigioni', valore: (r) => r.commissionCents, stile: { textAlign: 'right' }, esporta: (r) => (r.commissionCents ?? 0) / 100 },
     { chiave: 'compensi', titolo: 'Compensi visite', valore: (r) => r.compensationCents, stile: { textAlign: 'right' }, esporta: (r) => (r.compensationCents ?? 0) / 100 },
     { chiave: 'totale', titolo: 'Totale', valore: (r) => r.totalCents, stile: { textAlign: 'right' }, esporta: (r) => (r.totalCents ?? 0) / 100 },
+    { chiave: 'pagato', titolo: 'Pagato', valore: (r) => r.paidCents, stile: { textAlign: 'right' }, esporta: (r) => (r.paidCents ?? 0) / 100 },
+    { chiave: 'dapagare', titolo: 'Da pagare', valore: (r) => r.dueCents, stile: { textAlign: 'right' }, esporta: (r) => (r.dueCents ?? 0) / 100 },
     // Chi non ha un tetto è quasi tutti: per loro la cella resta vuota invece di dire «€ 0,00»,
     // che si leggerebbe come «non può guadagnare niente» — l'esatto contrario.
     { chiave: 'tetto', titolo: 'Tetto mensile', valore: (r) => r.capCents, stile: { textAlign: 'right' }, esporta: (r) => (r.capCents == null ? null : r.capCents / 100) },
@@ -79,8 +91,8 @@ export function Compensi() {
 
   // I totali seguono i filtri: sono la somma di quello che si sta guardando, non di tutto.
   const totals = t.tutte.reduce(
-    (acc, r) => ({ commission: acc.commission + r.commissionCents, compensation: acc.compensation + r.compensationCents, total: acc.total + r.totalCents }),
-    { commission: 0, compensation: 0, total: 0 },
+    (acc, r) => ({ commission: acc.commission + r.commissionCents, compensation: acc.compensation + r.compensationCents, total: acc.total + r.totalCents, paid: acc.paid + (r.paidCents ?? 0), due: acc.due + (r.dueCents ?? 0) }),
+    { commission: 0, compensation: 0, total: 0, paid: 0, due: 0 },
   );
 
   return (
@@ -125,6 +137,8 @@ export function Compensi() {
                     <td style={{ textAlign: 'right' }} className="muted">{euro(r.commissionCents)}</td>
                     <td style={{ textAlign: 'right' }} className="muted">{euro(r.compensationCents)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(r.totalCents)}</td>
+                    <td style={{ textAlign: 'right' }} className="muted">{euro(r.paidCents ?? 0)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, color: (r.dueCents ?? 0) > 0 ? undefined : 'var(--teal)' }}>{euro(r.dueCents ?? 0)}</td>
                     <td style={{ textAlign: 'right' }} className="muted">
                       {r.capCents == null ? '—' : (
                         <>
@@ -134,8 +148,9 @@ export function Compensi() {
                       )}
                     </td>
                     {puoPagare && (
-                      <td style={{ textAlign: 'right' }}>
-                        <button className="btn ghost sm" onClick={() => navigate(`/prelievi?paga=${encodeURIComponent(r.staffId)}`)} title="Registra un pagamento a questa persona"><i className="ti ti-cash" /> Paga</button>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {/* Niente «Paga» a chi è già saldato: un secondo clic sarebbe un secondo bonifico registrato. */}
+                        {(r.dueCents ?? 0) <= 0 ? <span className="chip" style={{ fontSize: 11 }}>saldato</span> : <button className="btn ghost sm" onClick={() => navigate(`/prelievi?paga=${encodeURIComponent(r.staffId)}`)} title="Registra un pagamento a questa persona"><i className="ti ti-cash" /> Paga</button>}
                       </td>
                     )}
                   </tr>
@@ -145,6 +160,8 @@ export function Compensi() {
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(totals.commission)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(totals.compensation)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(totals.total)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(totals.paid)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(totals.due)}</td>
                   {/* Niente somma dei tetti: sommare i massimali di persone diverse non è un numero. */}
                   <td />
                   {puoPagare && <td />}
