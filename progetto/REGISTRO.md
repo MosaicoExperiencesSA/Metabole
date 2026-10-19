@@ -20,6 +20,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-10-19
 
+- `[Sviluppo]` 📬 **Invito a Gaia: il report del mattino a Giusy.** Simone, 19/10, sulle caselle «Hanno cliccato»
+  e «Sono entrate»: *«questi due report vanno mandati giornalmente via mail a giusy@metabole.eu»*. Ogni notte il
+  cron `daily` (05:00 UTC, le 7 a Roma d'estate) manda i due elenchi — nome che porta alla scheda lead, email,
+  telefono, data, «NUOVA» per le ultime 24 ore, e nell'elenco dei clic se poi è anche entrata.
+  ⚠️ **Gli elenchi sono gli stessi delle caselle** (chi ha cliccato comprende chi è entrata): una mail che dice 30
+  dove il pannello dice 39 è una mail di cui ci si smette di fidare. Tetto di 300 righe per elenco, con il rimando
+  al pannello. **Destinatari in un parametro**, `gaia_invito_report_destinatari` (Parametri → Marketing, uno per
+  riga, vuoto = spento), seminato con giusy@metabole.eu: chi segue i lead cambia, e cambiarlo non deve chiedere un
+  rilascio. Una volta al giorno per indirizzo anche se il cron viene rilanciato (lo dice `email_log`). Niente di
+  nuovo su Render: nessun cron aggiunto, nessuna migrazione. Giudizio e impaginazione in
+  `marketing/invito-gaia/report-giornaliero.ts`, puro.
+
 - `[Sviluppo]` 💸 **Registra pagamento: lo staff si paga anche dal backoffice, con la contabile.** Simone, 19/10,
   davanti a Compensi (4 persone, 449,55 €): *«le ho pagate tutte, come faccio a registrare il pagamento»* — e la
   risposta era «non puoi». L'unica strada era la richiesta di prelievo della persona, che si apre **solo dal giorno 1

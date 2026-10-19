@@ -7551,4 +7551,19 @@ export const VOCI_INIZIALI: Voce[] = [
       + '(WINDOW_FROM/WINDOW_TO) e non in `config_param`, contro la regola del progetto.',
   },
 
+  {
+    chiave: 'invito-gaia-report-giornaliero',
+    fatta: true,
+    categoria: SIMONE,
+    ordine: 2,
+    nata: '2026-10-19T22:00',
+    titolo: '📬 Invito a Gaia: ogni mattina gli elenchi «Hanno cliccato» e «Sono entrate» via mail a Giusy',
+    dettaglio:
+      'Simone, 19/10: *«questi due report vanno mandati giornalmente via mail a giusy@metabole.eu»*.\n\n'
+      + '✅ **FATTO (19/10)**: parte dal cron della notte, una volta al giorno per indirizzo. Stessi elenchi delle caselle '
+      + 'del pannello, con nome (link alla scheda lead), email, telefono, data e «NUOVA» per le ultime 24 ore. I destinatari '
+      + 'sono il parametro `gaia_invito_report_destinatari` (Parametri → Marketing, uno per riga, vuoto = spento), seminato '
+      + 'con giusy@metabole.eu. Nessuna migrazione, nessun cron nuovo.',
+  },
+
 ];

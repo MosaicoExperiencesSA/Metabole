@@ -1,0 +1,24 @@
+Invito a Gaia: report giornaliero via mail con cliccati ed entrate
+
+Ogni notte il cron daily manda ai destinatari di Parametri gli elenchi Hanno cliccato e Sono entrate del pannello Invito a Gaia: nome con link alla scheda lead, email, telefono, data, NUOVA per le ultime 24 ore, e nei clic se poi e entrata.
+
+- Elenchi identici alle caselle del pannello (i totali coincidono); massimo 300 righe per elenco, con rimando al pannello.
+- Destinatari: parametro gaia_invito_report_destinatari (Parametri, Marketing), uno per riga, vuoto = spento; seminato con giusy@metabole.eu.
+- Una volta al giorno per indirizzo anche se il cron viene rilanciato (controllo su email_log).
+- Logica pura in marketing/invito-gaia/report-giornaliero.ts; prove pure e sul servizio; il cron controlla che lo step parta.
+
+Prove: backend 502 suite / 8607 verdi, build verde; backoffice 377 verdi, build verde.
+
+File:
+backend/src/marketing/invito-gaia/report-giornaliero.ts (nuovo)
+backend/src/marketing/invito-gaia/report-giornaliero.spec.ts (nuovo)
+backend/src/marketing/invito-gaia/report-giornaliero.service.spec.ts (nuovo)
+backend/src/marketing/invito-gaia/invito-gaia.service.ts
+backend/src/cron/cron.controller.ts
+backend/src/cron/cron.controller.spec.ts
+backend/prisma/seed.ts
+backoffice/src/pages/Parametri.tsx
+backend/src/lavori/voci-iniziali.ts
+progetto/REGISTRO.md
+
+Niente migrazioni. Nessun cron nuovo su Render, nessuna variabile d ambiente, nessuna dipendenza.

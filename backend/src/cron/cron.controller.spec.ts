@@ -53,7 +53,10 @@ type EsitoCron = Record<string, unknown> & {
 };
 
 describe('CronController (endpoint per Render Cron)', () => {
-  const invitoGaia = { giro: jest.fn().mockResolvedValue({ inviti: 0, promemoria: 0, nota: 'spento' }) };
+  const invitoGaia = {
+    giro: jest.fn().mockResolvedValue({ inviti: 0, promemoria: 0, nota: 'spento' }),
+    mandaReportGiornaliero: jest.fn().mockResolvedValue({ inviti: 1, nota: null }),
+  };
   let controller: CronController;
   let engine: { runBatch: jest.Mock };
   let notifications: { generateDailyBatch: jest.Mock; measuresNudgeTick: jest.Mock };
@@ -181,6 +184,9 @@ describe('CronController (endpoint per Render Cron)', () => {
     expect(res.notifications).toEqual({ clients: 1, notifications: 2, errors: 0 });
     expect(res._meta.ok).toBe(true);
     expect(res._meta.failures).toEqual([]);
+    // Il report del mattino dell'Invito a Gaia (19/10) parte dalla notte, una volta.
+    expect(invitoGaia.mandaReportGiornaliero).toHaveBeenCalledTimes(1);
+    expect(res.invitoGaiaReport).toEqual({ inviti: 1, nota: null });
     // Heartbeat: registrato sempre, così ogni notte si vede che il cron è girato.
     expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'cron.daily' }));
   });

@@ -37,7 +37,8 @@ describe('Invito a Gaia — il report del mattino (parte pura)', () => {
     expect(html).toContain('19/10/2026, 20:00');
     expect(html).toContain('https://bo.x/crm/lead/Bea');
     expect(html).toContain('tel:+39 333 1234567');
-    expect((html.match(/NUOVA<\/b>/g) ?? []).length).toBe(2);
+    // Il contrassegno sta nella cella del nome; il «NUOVA» della riga di spiegazione in cima non conta.
+    expect((html.match(/NUOVA<\/b><\/td>/g) ?? []).length).toBe(2);
   });
 
   it('i nomi arrivano da fuori: si scrivono, non si eseguono', () => {
