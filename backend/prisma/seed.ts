@@ -768,6 +768,14 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Invito a Gaia: fino a che ora (Roma, esclusa) si possono mandare le email.',
   },
   {
+    // 19/10, Simone: «questi due report vanno mandati giornalmente via mail a giusy@metabole.eu».
+    // Il seed non riscrive un valore già cambiato dalla pagina Parametri: questo è solo il primo.
+    key: 'gaia_invito_report_destinatari',
+    value: 'giusy@metabole.eu',
+    type: 'string',
+    description: 'Invito a Gaia: a chi va ogni mattina il report con gli elenchi «Hanno cliccato» e «Sono entrate». Un indirizzo per riga; vuoto = report spento.',
+  },
+  {
     key: 'gaia_invito_link_ore',
     value: '48',
     type: 'number',

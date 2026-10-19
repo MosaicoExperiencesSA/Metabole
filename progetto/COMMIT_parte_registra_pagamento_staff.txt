@@ -1,0 +1,37 @@
+Staff: registra pagamento dal backoffice con la contabile
+
+Prima un pagamento allo staff si poteva segnare solo confermando una richiesta di prelievo della persona, che si apre dal 1 al 7 del mese e vale solo per i mesi chiusi. Chi paga di sua iniziativa, o paga il mese in corso, restava con un bonifico fatto e un portafoglio che diceva da pagare.
+
+Nuovo:
+- Richieste prelievo: pulsante Registra pagamento (persona, importo, data del bonifico, con cosa, IBAN, nota, contabile PDF o immagine, cifrata come le ricevute).
+- Compensi: pulsante Paga su ogni riga, visibile solo a chi apre Prelievi; apre la stessa finestra con la persona scelta.
+- Contabile caricabile anche dopo su ogni pagamento fatto (anche quelli confermati da una richiesta) e scaricabile.
+- Tetto: maturato totale meno gia pagato, mese in corso compreso. Le richieste in attesa non si sottraggono (la finestra le segnala).
+- Il pagamento entra in Provvigioni pagate di Contabilita nel mese della data del bonifico. Mail e notifica alla persona; la mail non dice piu che avevi richiesto a chi non ha chiesto.
+- /me/wallet espone anticipatoCents (pagato oltre i mesi chiusi). L app non lo mostra ancora: voce nei Lavori.
+- Importo scritto a mano: 217.25 non diventa piu 21.725 euro (lib/importo.ts).
+
+Corretta anche una prova diventata rossa da sola su origin/main dal 20/9 (rigenera-non-cancella-a-mano, data fissa senza orologio finto).
+
+Prove: backend 500 suite / 8598 verdi, nest build verde; backoffice 40 file / 377 verdi, build verde. Mutazioni: tetto sul solo prelevabile = 3 rosse; data del bonifico ignorata = 1 rossa; mail da richiesta = 1 rossa.
+
+File:
+backend/prisma/schema.prisma
+backend/prisma/migrations/20261019120000_contabile_pagamenti_staff/migration.sql (nuovo)
+backend/src/payouts/pagamento-manuale.ts (nuovo)
+backend/src/payouts/pagamento-manuale.spec.ts (nuovo)
+backend/src/payouts/pagamento-manuale.service.spec.ts (nuovo)
+backend/src/payouts/payouts.service.ts
+backend/src/payouts/payouts.controller.ts
+backend/src/payouts/storico-dal-registro.spec.ts
+backend/src/mail/mail.service.ts
+backend/src/menu/rigenera-non-cancella-a-mano.spec.ts
+backend/src/lavori/voci-iniziali.ts
+backoffice/src/components/PagamentoStaffModal.tsx (nuovo)
+backoffice/src/lib/importo.ts (nuovo)
+backoffice/src/lib/importo.spec.ts (nuovo)
+backoffice/src/pages/Prelievi.tsx
+backoffice/src/pages/Compensi.tsx
+progetto/REGISTRO.md
+
+Migrazione: 20261019120000_contabile_pagamenti_staff (additiva, cinque colonne su commission_withdrawal). Nessuna variabile d ambiente, nessuna dipendenza nuova, niente app.

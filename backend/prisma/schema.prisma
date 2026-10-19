@@ -377,6 +377,15 @@ model CommissionWithdrawal {
   requestedAt  DateTime  @default(now()) @map("requested_at")
   paidAt       DateTime? @map("paid_at")
   approvedById String?   @map("approved_by_id")
+  /// Contabile del bonifico caricata dall'admin (cifrata come la ricevuta). Diversa dalla
+  /// ricevuta: quella la carica la persona pagata, questa chi paga.
+  proofData    Bytes?    @map("proof_data")
+  proofMime    String?   @map("proof_mime")
+  proofName    String?   @map("proof_name")
+  /// Con cosa e stato pagato: una delle voci di Parametri → «Con cosa si paga».
+  paidWith     String?   @map("paid_with")
+  /// Vero se il pagamento e stato registrato dal backoffice senza una richiesta della persona.
+  manual       Boolean   @default(false)
 
   @@index([staffId, status])
   @@map("commission_withdrawal")

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { PayoutsService } from './payouts.service';
 
 /**
@@ -80,6 +81,7 @@ describe('PayoutsService — lo storico mesi si legge dal registro', () => {
         { provide: ConfigService, useValue: { get: () => 'chiave-di-prova-lunga-abbastanza' } },
         { provide: MailService, useValue: {} },
         { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: ConfigParamsService, useValue: { getString: jest.fn().mockResolvedValue('') } },
       ],
     }).compile();
     service = moduleRef.get(PayoutsService);

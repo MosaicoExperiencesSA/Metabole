@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { Banner, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
@@ -36,6 +38,11 @@ export function Compensi() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState('');
+  const navigate = useNavigate();
+  // «Paga» porta alla finestra di Prelievi: si vede solo a chi quella pagina la può aprire. Compensi
+  // resta in sola lettura — chi la vede con la sola casella «Compensi» non paga niente.
+  const { can } = useAuth();
+  const puoPagare = can('withdrawals');
 
   useEffect(() => {
     setLoading(true);
@@ -64,6 +71,7 @@ export function Compensi() {
     // Chi non ha un tetto è quasi tutti: per loro la cella resta vuota invece di dire «€ 0,00»,
     // che si leggerebbe come «non può guadagnare niente» — l'esatto contrario.
     { chiave: 'tetto', titolo: 'Tetto mensile', valore: (r) => r.capCents, stile: { textAlign: 'right' }, esporta: (r) => (r.capCents == null ? null : r.capCents / 100) },
+    ...(puoPagare ? [{ chiave: 'azioni', titolo: '', stile: { textAlign: 'right' as const } }] : []),
   ];
 
   // Il server manda chi prende più in cima: lo stesso ordine resta quello di partenza.
@@ -125,6 +133,11 @@ export function Compensi() {
                         </>
                       )}
                     </td>
+                    {puoPagare && (
+                      <td style={{ textAlign: 'right' }}>
+                        <button className="btn ghost sm" onClick={() => navigate(`/prelievi?paga=${encodeURIComponent(r.staffId)}`)} title="Registra un pagamento a questa persona"><i className="ti ti-cash" /> Paga</button>
+                      </td>
+                    )}
                   </tr>
                 ))}
                 <tr>
@@ -134,6 +147,7 @@ export function Compensi() {
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(totals.total)}</td>
                   {/* Niente somma dei tetti: sommare i massimali di persone diverse non è un numero. */}
                   <td />
+                  {puoPagare && <td />}
                 </tr>
               </tbody>
             </table>

@@ -13,7 +13,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MarketingService } from '../marketing.service';
 import { GAIA_INVITO, GAIA_PROMEMORIA } from './email-gaia';
 import { PER_PAGINA, cercaValida, motivoLeggibile, nomeECognome, paginaValida, type RigaElenco, type TipoElenco } from './elenco';
-import { inizioDiOggi } from '../../common/date-only';
+import { FUSO, inizioDiOggi } from '../../common/date-only';
+import { componiReport, destinatariDaTesto, type RigaReport } from './report-giornaliero';
 import {
   emailMascherata,
   escHtml,
@@ -82,7 +83,14 @@ const CHIAVI = {
   oraDa: 'gaia_invito_ora_da',
   oraA: 'gaia_invito_ora_a',
   linkOre: 'gaia_invito_link_ore',
+  /** A chi va il report del mattino (19/10): un indirizzo per riga, vuoto = spento. */
+  reportA: 'gaia_invito_report_destinatari',
 } as const;
+
+/** Il modello nel registro email: serve anche a non mandare il report due volte nello stesso giorno. */
+const REPORT_TEMPLATE = 'gaia_report_giornaliero';
+/** Righe per elenco dentro la mail: oltre, si rimanda al pannello (che le ha tutte). */
+const REPORT_RIGHE_MAX = 300;
 
 /** Dopo tanti invii falliti di fila si smette per questo giro: Brevo è giù, non la persona. */
 const FALLIMENTI_DI_FILA = 3;
@@ -600,6 +608,65 @@ export class InvitoGaiaService {
         tipo === 'scartati' || tipo === 'oggi' ? motivoLeggibile(i.esito === 'inviato' || i.esito === 'invio' ? null : i.esito) : null,
       ));
     return { tipo, pagina, perPagina: PER_PAGINA, totale, righe };
+  }
+
+  // ---------- Il report del mattino (19/10) ----------
+
+  /**
+   * Manda ai destinatari del parametro i due elenchi del pannello: «Hanno cliccato» e «Sono
+   * entrate». Parte dal cron della notte (`daily`), una volta al giorno per indirizzo: se il cron
+   * viene rilanciato, chi l'ha già ricevuto oggi non lo riceve di nuovo (lo dice `email_log`).
+   */
+  async mandaReportGiornaliero(adesso: Date = new Date()): Promise<{ inviati: number; nota: string | null }> {
+    const destinatari = destinatariDaTesto(await this.params.getString(CHIAVI.reportA, '').catch(() => ''));
+    if (destinatari.length === 0) return { inviati: 0, nota: 'nessun destinatario' };
+
+    const giaRicevuto = (await this.prisma.emailLog.findMany({
+      where: { to: { in: destinatari }, templateKey: REPORT_TEMPLATE, status: 'sent', createdAt: { gte: inizioDiOggi(adesso) } },
+      select: { to: true },
+    })) as { to: string }[];
+    const fatti = new Set(giaRicevuto.map((r) => r.to.toLowerCase()));
+    const daFare = destinatari.filter((d) => !fatti.has(d));
+    if (daFare.length === 0) return { inviati: 0, nota: 'già mandato oggi' };
+
+    const backoffice = (this.config.get<string>('BACKOFFICE_URL') ?? 'https://backoffice.metabole.eu').replace(/\/+$/, '');
+    const campi = {
+      clickedAt: true, enteredAt: true, email: true,
+      crmRecord: { select: { id: true, email: true, name: true, firstName: true, lastName: true, phone: true } },
+    } as const;
+    type Riga = { clickedAt: Date | null; enteredAt: Date | null; email: string | null; crmRecord: { id: string; email: string | null; name: string | null; firstName: string | null; lastName: string | null; phone: string | null } | null };
+    // ⚠️ Gli stessi filtri delle caselle del pannello (`panoramica`): i numeri devono coincidere.
+    const [totaleCliccati, cliccati, totaleEntrate, entrate] = await Promise.all([
+      this.prisma.gaiaInvite.count({ where: { clickedAt: { not: null } } }),
+      this.prisma.gaiaInvite.findMany({ where: { clickedAt: { not: null } }, orderBy: [{ clickedAt: 'desc' }, { id: 'asc' }], take: REPORT_RIGHE_MAX, select: campi }),
+      this.prisma.gaiaInvite.count({ where: { enteredAt: { not: null } } }),
+      this.prisma.gaiaInvite.findMany({ where: { enteredAt: { not: null } }, orderBy: [{ enteredAt: 'desc' }, { id: 'asc' }], take: REPORT_RIGHE_MAX, select: campi }),
+    ]);
+    if (totaleCliccati === 0 && totaleEntrate === 0) return { inviati: 0, nota: 'niente da riferire' };
+
+    const inRiga = (i: Riga, quando: Date | null): RigaReport => ({
+      ...nomeECognome(i.crmRecord ?? {}),
+      email: i.email ?? i.crmRecord?.email ?? '',
+      telefono: i.crmRecord?.phone ?? null,
+      quando,
+      entrata: !!i.enteredAt,
+      scheda: i.crmRecord ? `${backoffice}/crm/lead/${i.crmRecord.id}` : `${backoffice}/marketing`,
+    });
+    const { subject, html } = componiReport({
+      cliccati: (cliccati as unknown as Riga[]).map((i) => inRiga(i, i.clickedAt)),
+      totaleCliccati,
+      entrate: (entrate as unknown as Riga[]).map((i) => inRiga(i, i.enteredAt)),
+      totaleEntrate,
+      adesso,
+      fuso: FUSO,
+      pannello: `${backoffice}/marketing`,
+    });
+
+    let inviati = 0;
+    for (const to of daFare) {
+      if (await this.mail.send({ to, subject, html, templateKey: REPORT_TEMPLATE })) inviati += 1;
+    }
+    return { inviati, nota: inviati < daFare.length ? `${daFare.length - inviati} non partiti (vedi registro email)` : null };
   }
 
   /** Le due email a un indirizzo di prova, con il nome «Maria» e link che non aprono niente. */

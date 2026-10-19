@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { allegatoDaFile, PagamentoStaffModal } from '../components/PagamentoStaffModal';
 import { Banner, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
@@ -8,6 +10,12 @@ interface Withdrawal {
   amountCents: number; iban: string; status: string;
   requestedAt: string; paidAt: string | null; note: string | null;
   hasReceipt: boolean; withdrawableCents: number; congruent: boolean;
+  /** Contabile del bonifico caricata dall'admin (19/10). */
+  hasProof?: boolean;
+  /** Con cosa è stato pagato (voce di Parametri → «Con cosa si paga»). */
+  paidWith?: string | null;
+  /** Registrato dal backoffice senza una richiesta della persona. */
+  manual?: boolean;
 }
 
 const euro = (c: number) => (c / 100).toFixed(2).replace('.', ',') + ' €';
@@ -31,6 +39,12 @@ export function Prelievi() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // «Paga» da Compensi arriva qui con `?paga=<staffId>`: la finestra si apre con la persona scelta.
+  const [params, setParams] = useSearchParams();
+  const [pagamento, setPagamento] = useState<{ staffId: string | null } | null>(() => (params.get('paga') ? { staffId: params.get('paga') } : null));
+  // Un solo campo file nascosto per «Carica contabile»: si sa su quale riga dal ref, non dal campo.
+  const fileRef = useRef<HTMLInputElement>(null);
+  const rigaContabile = useRef<Withdrawal | null>(null);
 
   async function load() {
     setLoading(true); setError(null);
@@ -66,9 +80,37 @@ export function Prelievi() {
     finally { setBusyId(null); }
   }
 
-  async function downloadReceipt(w: Withdrawal) {
+  function chiudiPagamento() {
+    setPagamento(null);
+    if (params.get('paga')) { params.delete('paga'); setParams(params, { replace: true }); }
+  }
+
+  function scegliContabile(w: Withdrawal) {
+    rigaContabile.current = w;
+    fileRef.current?.click();
+  }
+
+  async function caricaContabile(file: File | undefined) {
+    const w = rigaContabile.current;
+    if (fileRef.current) fileRef.current.value = '';
+    if (!w || !file) return;
+    setBusyId(w.id); setError(null); setNotice(null);
     try {
-      const r = await api<{ fileName: string; mimeType: string; contentBase64: string }>(`/admin/withdrawals/${w.id}/receipt`);
+      const proof = await allegatoDaFile(file);
+      await api(`/admin/withdrawals/${w.id}/proof`, { method: 'POST', body: JSON.stringify({ proof }) });
+      setNotice(`Contabile caricata sul pagamento a ${w.staffName}.`);
+      await load();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Caricamento non riuscito.'); }
+    finally { setBusyId(null); }
+  }
+
+  async function downloadReceipt(w: Withdrawal) {
+    return scarica(w, 'receipt');
+  }
+
+  async function scarica(w: Withdrawal, cosa: 'receipt' | 'proof') {
+    try {
+      const r = await api<{ fileName: string; mimeType: string; contentBase64: string }>(`/admin/withdrawals/${w.id}/${cosa}`);
       const bytes = Uint8Array.from(atob(r.contentBase64), (c) => c.charCodeAt(0));
       const url = URL.createObjectURL(new Blob([bytes], { type: r.mimeType }));
       const a = document.createElement('a'); a.href = url; a.download = r.fileName; document.body.appendChild(a); a.click(); a.remove();
@@ -98,7 +140,18 @@ export function Prelievi() {
 
   return (
     <>
-      <p className="hint" style={{ marginTop: 0 }}>Verifica gli importi (non oltre il saldo prelevabile), scarica la ricevuta e conferma dopo aver fatto il bonifico.</p>
+      <div className="spread" style={{ gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+        <p className="hint" style={{ margin: 0 }}>Le richieste: verifica l'importo, scarica la ricevuta e conferma dopo il bonifico. Un pagamento fatto senza richiesta si registra con <b>Registra pagamento</b>; la contabile si allega lì o dopo, su ogni pagamento.</p>
+        <button className="btn" onClick={() => setPagamento({ staffId: null })}><i className="ti ti-cash" /> Registra pagamento</button>
+      </div>
+      {pagamento && (
+        <PagamentoStaffModal
+          staffIdIniziale={pagamento.staffId}
+          onClose={chiudiPagamento}
+          onSaved={(msg) => { chiudiPagamento(); setNotice(msg); if (tab === 'paid') void load(); else setTab('paid'); }}
+        />
+      )}
+      <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,image/heic" style={{ display: 'none' }} onChange={(e) => void caricaContabile(e.target.files?.[0])} />
       <div className="row" style={{ gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         {TABS.map((x) => (
           <button key={x.key} className={`chip ${x.key === tab ? '' : 'ghost'}`} style={{ cursor: 'pointer', border: x.key === tab ? '2px solid var(--teal)' : undefined }} onClick={() => setTab(x.key)}>{x.label}</button>
@@ -159,12 +212,25 @@ export function Prelievi() {
                           </div>
                         )}
                       </td>
-                      <td><span className={`chip ${STATO_CHIP[w.status] ?? 'gray'}`}>{STATO_LABEL[w.status] ?? w.status}</span></td>
-                      <td className="muted" style={{ whiteSpace: 'nowrap' }}>{giorno(w.requestedAt)}</td>
-                      <td className="muted" style={{ whiteSpace: 'nowrap' }}>{giorno(w.paidAt)}</td>
+                      <td>
+                        <span className={`chip ${STATO_CHIP[w.status] ?? 'gray'}`}>{STATO_LABEL[w.status] ?? w.status}</span>
+                        {w.manual && <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>registrato senza richiesta</div>}
+                      </td>
+                      {/* Un pagamento registrato a mano non è mai stato «richiesto»: la data di quella riga è solo quando è stato scritto. */}
+                      <td className="muted" style={{ whiteSpace: 'nowrap' }}>{w.manual ? '—' : giorno(w.requestedAt)}</td>
+                      <td className="muted" style={{ whiteSpace: 'nowrap' }}>
+                        {giorno(w.paidAt)}
+                        {w.paidWith && <div style={{ fontSize: 11 }}>{w.paidWith}</div>}
+                      </td>
                       <td className="muted" style={{ fontSize: 12, maxWidth: 220 }}>{w.note || '—'}</td>
                       <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        {w.hasReceipt && <button className="btn ghost sm" onClick={() => downloadReceipt(w)} title="Scarica la ricevuta"><i className="ti ti-download" /></button>}
+                        {w.hasReceipt && <button className="btn ghost sm" onClick={() => downloadReceipt(w)} title="Scarica la ricevuta della persona"><i className="ti ti-download" /></button>}
+                        {w.hasProof && <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => scarica(w, 'proof')} title="Scarica la contabile del bonifico"><i className="ti ti-file-invoice" /></button>}
+                        {w.status === 'paid' && (
+                          <button className="btn ghost sm" style={{ marginLeft: 6 }} disabled={busyId === w.id} onClick={() => scegliContabile(w)} title={w.hasProof ? 'Sostituisci la contabile' : 'Carica la contabile del bonifico'}>
+                            <i className="ti ti-upload" /> {w.hasProof ? 'Sostituisci' : 'Contabile'}
+                          </button>
+                        )}
                         {/* Confermare un pagamento sposta dei soldi: questi due pulsanti restano
                             scritti, non a sola icona come il download della ricevuta. */}
                         {w.status === 'requested' && (

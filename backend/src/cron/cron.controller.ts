@@ -205,6 +205,9 @@ export class CronController {
     // Il report mensile di Vera: parte SOLO il 1° del mese (il metodo controlla da solo la data
     // ed è idempotente — la notifica del mese fa da marcatore). Notifica in app + email ai capi.
     await step('veraReportMensile', () => this.registroVera.spedisciReportMensile());
+    // Invito a Gaia (19/10): ogni mattina gli elenchi «Hanno cliccato» e «Sono entrate» ai
+    // destinatari di Parametri (di partenza giusy@metabole.eu). Una volta al giorno per indirizzo.
+    await step('invitoGaiaReport', () => this.invitoGaia.mandaReportGiornaliero());
     /**
      * ⛔ **I PERCORSI SUPERVISIONATI CHE NESSUNO HA ANCORA GUARDATO** (Simone, 25/8: «se il cliente è
      * supervisionato va mandata notifica a Lucia di controllarlo ogni 7 giorni attraverso Vera»).

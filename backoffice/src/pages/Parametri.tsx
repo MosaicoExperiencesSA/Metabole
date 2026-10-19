@@ -41,6 +41,10 @@ const META: Record<string, Meta> = {
   // aggiungerne uno non deve richiedere un rilascio.
   cost_payment_methods: { label: 'Con cosa si paga', group: 'Contabilità', kind: 'textarea', help: 'Le scelte della tendina «Con cosa» quando registri un costo in Contabilità: una voce per riga (es. «Carta aziendale», «Bonifico dal conto»). Le voci già usate nei costi registrati non cambiano nome se le modifichi qui.' },
 
+  // Invito a Gaia (19/10): a chi va il report del mattino. Gli altri parametri dell'invito si
+  // gestiscono dal pannello in Marketing; questo no, perché è una scelta su chi legge, non su chi riceve l'invito.
+  gaia_invito_report_destinatari: { label: 'Report Invito a Gaia: a chi', group: 'Marketing', kind: 'textarea', help: 'Ogni mattina parte una mail con gli elenchi «Hanno cliccato» e «Sono entrate» dell’Invito a Gaia. Un indirizzo per riga; lascia vuoto per spegnerla.' },
+
   // Niente provvigioni in questa pagina, ed è voluto: dal 14/07 sono importi in € definiti su ogni
   // piano/prodotto in Gestione negozio. L'ultima voce rimasta qui era «Compenso per visita»,
   // togliata l'11/8 insieme al compenso stesso (vedi `FinanceService`): un parametro che non decide

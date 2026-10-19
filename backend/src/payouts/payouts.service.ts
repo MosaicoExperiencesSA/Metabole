@@ -2,12 +2,15 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
-import { confineMese, giornoDelMeseLocale, meseLocale, meseSpostato } from '../common/date-only';
+import { confineMese, giornoDelMeseLocale, giornoLocale, inizioDelGiorno, meseLocale, meseSpostato } from '../common/date-only';
 import { controllaIban } from '../common/iban';
 import { CATEGORIE_COMPENSO, inizioMese, mesePeriodo, tettoAttivoCents } from '../common/tetto-compensi';
+import { metodiDaTesto } from '../commerce/accounting.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { decryptBuffer, deriveKey, encryptBuffer } from '../health-area/crypto.util';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { motivoRifiutoPagamento, residuoDaPagare } from './pagamento-manuale';
 
 // L'elenco sta in `common/tetto-compensi.ts`: il tetto di guadagno (§16.8) DEVE contare
 // esattamente quello che questo portafoglio mostra come guadagnato, o taglia su un numero che la
@@ -17,6 +20,25 @@ const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
 const RECEIPT_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic'];
 const WINDOW_FROM = 1; // giorno del mese in cui si apre la richiesta
 const WINDOW_TO = 7; // ...e in cui si chiude (incluso)
+
+/** Un allegato come arriva dal backoffice o dall'app: nome, tipo e contenuto in base64. */
+export interface AllegatoInput {
+  fileName: string;
+  mimeType: string;
+  contentBase64: string;
+}
+
+/** Pagamento registrato dall'admin senza una richiesta della persona (19/10). */
+export interface PagamentoManualeInput {
+  staffId: string;
+  amountCents: number;
+  /** Giorno del bonifico, `YYYY-MM-DD`, nel fuso dell'azienda. */
+  paidOn: string;
+  paidWith?: string | null;
+  iban?: string | null;
+  note?: string | null;
+  proof?: AllegatoInput;
+}
 
 /**
  * Portafoglio provvigioni e prelievi.
@@ -35,6 +57,7 @@ export class PayoutsService {
     private readonly config: ConfigService,
     private readonly mail: MailService,
     private readonly audit: AuditService,
+    private readonly configParams: ConfigParamsService,
   ) {
     this.receiptKey = deriveKey(this.config.get<string>('FILE_ENCRYPTION_KEY') ?? 'dev-only-file-key');
   }
@@ -68,6 +91,26 @@ export class PayoutsService {
     return res._sum.amountCents ?? 0;
   }
 
+  /** Tutto il maturato a registro, mesi chiusi e mese in corso insieme. */
+  private async sumLedgerAll(staffId: string): Promise<number> {
+    const res = await this.prisma.ledgerEntry.aggregate({
+      _sum: { amountCents: true },
+      where: { type: 'expense' as never, category: { in: COMMISSION_CATEGORIES }, staffId },
+    });
+    return res._sum.amountCents ?? 0;
+  }
+
+  /**
+   * Valida e cifra un allegato (ricevuta della persona o contabile dell'admin): stessi formati,
+   * stesso tetto, stessa chiave. Una funzione sola perché i due controlli non si separino.
+   */
+  private cifraAllegato(input: AllegatoInput, cosa: string): { data: Uint8Array; mime: string; name: string } {
+    if (!RECEIPT_MIME.includes(input.mimeType)) throw new BadRequestException(`Formato ${cosa} non supportato (PDF o immagine).`);
+    const plain = Buffer.from(input.contentBase64, 'base64');
+    if (plain.length === 0 || plain.length > RECEIPT_MAX_BYTES) throw new BadRequestException(`Dimensione ${cosa} non valida (max 5 MB).`);
+    return { data: new Uint8Array(encryptBuffer(plain, this.receiptKey)), mime: input.mimeType, name: input.fileName };
+  }
+
   private async sumWithdrawals(staffId: string, status: string): Promise<number> {
     const res = await this.prisma.commissionWithdrawal.aggregate({
       _sum: { amountCents: true },
@@ -92,6 +135,9 @@ export class PayoutsService {
     ]);
     const prelevabile = Math.max(0, earnedBefore - paid);
     const available = Math.max(0, prelevabile - pending);
+    // Pagato in anticipo sul mese in corso (pagamento registrato dall'admin, 19/10): senza questo
+    // numero il portafoglio direbbe «in maturazione 200» a chi quei 200 li ha già ricevuti.
+    const anticipato = Math.max(0, paid - earnedBefore);
 
     const pendingRequest = await this.prisma.commissionWithdrawal.findFirst({
       where: { staffId: staff.id, status: 'requested' },
@@ -113,6 +159,7 @@ export class PayoutsService {
       inMaturazioneCents: inMaturazione,
       prelevabileCents: prelevabile,
       prelevatoCents: paid,
+      anticipatoCents: anticipato,
       pendingRequestedCents: pending,
       availableToRequestCents: available,
       tettoMensileCents,
@@ -290,12 +337,10 @@ export class PayoutsService {
     let receiptMime: string | null = null;
     let receiptName: string | null = null;
     if (input.receipt) {
-      if (!RECEIPT_MIME.includes(input.receipt.mimeType)) throw new BadRequestException('Formato ricevuta non supportato (PDF o immagine).');
-      const plain = Buffer.from(input.receipt.contentBase64, 'base64');
-      if (plain.length === 0 || plain.length > RECEIPT_MAX_BYTES) throw new BadRequestException('Dimensione ricevuta non valida (max 5 MB).');
-      receiptData = new Uint8Array(encryptBuffer(plain, this.receiptKey));
-      receiptMime = input.receipt.mimeType;
-      receiptName = input.receipt.fileName;
+      const c = this.cifraAllegato(input.receipt, 'ricevuta');
+      receiptData = c.data;
+      receiptMime = c.mime;
+      receiptName = c.name;
     }
 
     const withdrawal = await this.prisma.commissionWithdrawal.create({
@@ -375,7 +420,7 @@ export class PayoutsService {
     if (w.staff?.user?.email) {
       await this.mail.sendCommissionWithdrawalPaid(
         w.staff.user.email,
-        { amountCents: w.amountCents, iban: w.iban, date: new Date() },
+        { amountCents: w.amountCents, iban: w.iban, date: new Date(), richiesto: true },
         w.staff.user.locale,
       );
     }
@@ -399,6 +444,183 @@ export class PayoutsService {
     return this.publicWithdrawal(updated);
   }
 
+  // ---------- Pagamenti registrati dall'admin (19/10) ----------
+
+  /** Le voci della tendina «con cosa hai pagato» — le stesse dei costi, da Parametri. */
+  async metodiPagamento(): Promise<string[]> {
+    const testo = await this.configParams.getString('cost_payment_methods', '').catch(() => '');
+    return metodiDaTesto(testo);
+  }
+
+  /**
+   * Chi si può pagare: tutto lo staff che ha almeno una riga di compenso a registro, con quanto ha
+   * maturato, quanto ha già ricevuto e quanto resta. È la tendina della finestra «Registra
+   * pagamento», e i numeri sono gli stessi che il server userà per decidere: un tetto mostrato e
+   * uno applicato diversi sono la stessa domanda con due risposte.
+   */
+  async listPayees() {
+    const [maturato, pagato, inAttesa] = await Promise.all([
+      this.prisma.ledgerEntry.groupBy({
+        by: ['staffId'],
+        where: { type: 'expense' as never, category: { in: COMMISSION_CATEGORIES }, staffId: { not: null } },
+        _sum: { amountCents: true },
+      }) as unknown as Promise<{ staffId: string; _sum: { amountCents: number | null } }[]>,
+      this.prisma.commissionWithdrawal.groupBy({ by: ['staffId'], where: { status: 'paid' }, _sum: { amountCents: true } }) as unknown as Promise<{ staffId: string; _sum: { amountCents: number | null } }[]>,
+      this.prisma.commissionWithdrawal.groupBy({ by: ['staffId'], where: { status: 'requested' }, _sum: { amountCents: true } }) as unknown as Promise<{ staffId: string; _sum: { amountCents: number | null } }[]>,
+    ]);
+    const somma = (rows: { staffId: string; _sum: { amountCents: number | null } }[]) => new Map(rows.map((r) => [r.staffId, r._sum.amountCents ?? 0]));
+    const mMat = somma(maturato);
+    const mPag = somma(pagato);
+    const mAtt = somma(inAttesa);
+    const ids = Array.from(new Set([...mMat.keys(), ...mPag.keys()]));
+    const staff = (await this.prisma.staff.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, displayName: true, iban: true, user: { select: { email: true, role: true } } },
+    })) as { id: string; displayName: string; iban: string | null; user: { email: string; role: string } | null }[];
+    return staff
+      .map((s) => {
+        const maturatoCents = mMat.get(s.id) ?? 0;
+        const pagatoCents = mPag.get(s.id) ?? 0;
+        return {
+          staffId: s.id,
+          displayName: s.displayName,
+          email: s.user?.email ?? null,
+          role: s.user?.role ?? null,
+          iban: s.iban,
+          maturatoCents,
+          pagatoCents,
+          residuoCents: residuoDaPagare({ maturatoCents, pagatoCents }),
+          richiestaInAttesaCents: mAtt.get(s.id) ?? 0,
+        };
+      })
+      .sort((a, b) => b.residuoCents - a.residuoCents || a.displayName.localeCompare(b.displayName, 'it'));
+  }
+
+  /**
+   * Registra un pagamento GIÀ FATTO, senza una richiesta della persona: finisce fra i «Pagati» con
+   * la data del bonifico, nel prelevato del suo portafoglio e nelle «Provvigioni pagate» di
+   * Contabilità del mese in cui è stato fatto. La persona riceve la stessa mail e la stessa
+   * notifica della conferma di una richiesta.
+   */
+  async registerManualPayment(operator: AuthUser, input: PagamentoManualeInput) {
+    const staff = (await this.prisma.staff.findUnique({
+      where: { id: input.staffId },
+      select: { id: true, userId: true, displayName: true, iban: true, user: { select: { email: true, locale: true } } },
+    })) as { id: string; userId: string | null; displayName: string; iban: string | null; user: { email: string; locale: string | null } | null } | null;
+    if (!staff) throw new NotFoundException('Persona non trovata.');
+
+    const [maturatoCents, pagatoCents] = await Promise.all([this.sumLedgerAll(staff.id), this.sumWithdrawals(staff.id, 'paid')]);
+    const amountCents = Math.round(input.amountCents);
+    const paidOn = (input.paidOn ?? '').trim();
+    const motivo = motivoRifiutoPagamento({ amountCents, pagatoIl: paidOn, oggi: giornoLocale(new Date()), situazione: { maturatoCents, pagatoCents } });
+    if (motivo) throw new BadRequestException(motivo);
+
+    // L'IBAN è facoltativo (si può pagare in contanti, o con un conto che non è un IBAN), ma se c'è
+    // si controlla la cifra di controllo come nella richiesta: è il numero su cui si fa un bonifico.
+    let iban = '';
+    const ibanScritto = (input.iban ?? '').trim();
+    if (ibanScritto) {
+      const esito = controllaIban(ibanScritto);
+      if (!esito.valido) throw new BadRequestException(esito.perche);
+      iban = esito.iban;
+    } else if (staff.iban) {
+      iban = staff.iban;
+    }
+
+    const paidWith = await this.validaMetodo(input.paidWith);
+    const proof = input.proof ? this.cifraAllegato(input.proof, 'contabile') : null;
+    // Mezzogiorno a Roma del giorno del bonifico: lontano da ogni confine, così Contabilità lo conta
+    // nel mese giusto qualunque sia l'ora legale.
+    const paidAt = new Date(inizioDelGiorno(paidOn).getTime() + 12 * 3600 * 1000);
+    const operatore = await this.prisma.staff.findUnique({ where: { userId: operator.sub }, select: { id: true } });
+    const note = (input.note ?? '').trim() || null;
+
+    const created = await this.prisma.commissionWithdrawal.create({
+      data: {
+        staffId: staff.id,
+        amountCents,
+        iban,
+        status: 'paid',
+        paidAt,
+        approvedById: operatore?.id ?? null,
+        note,
+        paidWith,
+        manual: true,
+        proofData: (proof?.data ?? null) as never,
+        proofMime: proof?.mime ?? null,
+        proofName: proof?.name ?? null,
+      },
+    });
+
+    if (staff.user?.email) {
+      await this.mail
+        .sendCommissionWithdrawalPaid(staff.user.email, { amountCents, iban, date: paidAt, richiesto: false }, staff.user.locale)
+        .catch(() => false);
+    }
+    if (staff.userId) {
+      const dove = iban ? ` sull'IBAN …${iban.slice(-4)}` : '';
+      await this.prisma.notification.create({
+        data: {
+          userId: staff.userId,
+          type: 'payout_paid',
+          payload: {
+            title: 'Pagamento provvigioni 💸',
+            body: `Ti abbiamo pagato € ${(amountCents / 100).toFixed(2).replace('.', ',')}${dove}. Lo trovi nello storico prelievi.`,
+          } as never,
+          channel: 'inapp',
+          scheduledFor: new Date(),
+          sentAt: new Date(),
+        },
+      }).catch(() => undefined);
+    }
+    await this.audit.log({
+      action: 'payout.manual',
+      actorId: operator.sub,
+      entityType: 'commission_withdrawal',
+      entityId: created.id,
+      metadata: { staffId: staff.id, amountCents, paidOn, paidWith, conContabile: Boolean(proof) },
+    });
+    return this.publicWithdrawal(created);
+  }
+
+  /** Il metodo dev'essere una delle voci configurate (stessa regola dei costi in Contabilità). */
+  private async validaMetodo(paidWith: string | null | undefined): Promise<string | null> {
+    const v = paidWith?.trim();
+    if (!v) return null;
+    const ammessi = await this.metodiPagamento();
+    if (!ammessi.includes(v)) {
+      throw new BadRequestException(`«${v}» non è fra i modi di pagamento configurati. Le voci si aggiungono in Parametri → «Con cosa si paga».`);
+    }
+    return v;
+  }
+
+  /**
+   * Carica (o sostituisce) la contabile di un pagamento già fatto — registrato a mano o confermato
+   * da una richiesta. Solo sui pagati: la contabile di un bonifico che non c'è non esiste.
+   */
+  async uploadProof(operator: AuthUser, id: string, proofInput: AllegatoInput) {
+    const w = await this.prisma.commissionWithdrawal.findUnique({ where: { id } });
+    if (!w) throw new NotFoundException('Pagamento non trovato.');
+    if (w.status !== 'paid') throw new BadRequestException('La contabile si carica solo su un pagamento già fatto.');
+    const proof = this.cifraAllegato(proofInput, 'contabile');
+    const updated = await this.prisma.commissionWithdrawal.update({
+      where: { id },
+      data: { proofData: proof.data as never, proofMime: proof.mime, proofName: proof.name },
+    });
+    await this.audit.log({ action: 'payout.proof', actorId: operator.sub, entityType: 'commission_withdrawal', entityId: id, metadata: { sostituita: Boolean(w.proofData) } });
+    return this.publicWithdrawal(updated);
+  }
+
+  async downloadProof(id: string) {
+    const w = await this.prisma.commissionWithdrawal.findUnique({ where: { id } });
+    if (!w?.proofData) throw new NotFoundException('Contabile non presente.');
+    return {
+      fileName: w.proofName ?? 'contabile',
+      mimeType: w.proofMime ?? 'application/octet-stream',
+      contentBase64: decryptBuffer(Buffer.from(w.proofData as unknown as Uint8Array), this.receiptKey).toString('base64'),
+    };
+  }
+
   async rejectWithdrawal(operator: AuthUser, id: string, reason: string) {
     const w = await this.prisma.commissionWithdrawal.findUnique({ where: { id } });
     if (!w) throw new NotFoundException('Richiesta non trovata.');
@@ -409,7 +631,8 @@ export class PayoutsService {
   }
 
   private publicWithdrawal(w: Record<string, unknown>) {
-    const { receiptData, ...rest } = w;
-    return { ...rest, hasReceipt: Boolean(receiptData) };
+    // I byte degli allegati non escono mai in un elenco: solo se ci sono. Si scaricano uno per volta.
+    const { receiptData, proofData, ...rest } = w;
+    return { ...rest, hasReceipt: Boolean(receiptData), hasProof: Boolean(proofData) };
   }
 }

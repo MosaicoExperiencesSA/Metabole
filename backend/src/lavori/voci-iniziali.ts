@@ -7519,4 +7519,36 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⚠️ Vale dai **giorni nuovi**: i menu già erogati non si riscrivono da soli, per quelli c\'è «Rigenera menu».',
   },
 
+  {
+    chiave: 'registra-pagamento-staff',
+    fatta: true,
+    categoria: SIMONE,
+    ordine: 1,
+    nata: '2026-10-19T10:00',
+    titolo: '💸 Registrare dal backoffice un pagamento allo staff già fatto, con la contabile',
+    dettaglio:
+      'Simone, 19/10: *«le ho pagate tutte, come faccio a registrare il pagamento»* e poi *«da backoffice devo avere la '
+      + 'possibilità di registrare il pagamento e magari caricare la contabile»*. Prima si poteva solo confermare una '
+      + 'richiesta di prelievo della persona (giorni 1–7, solo mesi chiusi).\n\n'
+      + '✅ **FATTO (19/10)**: «Registra pagamento» in Richieste prelievo e «Paga» su ogni riga di Compensi. Persona, importo '
+      + '(fino a maturato totale − già pagato, mese in corso compreso), data del bonifico, con cosa (Parametri → Con cosa si '
+      + 'paga), IBAN, nota, contabile cifrata. Contabile caricabile anche dopo su ogni pagamento fatto. Mail e notifica alla '
+      + 'persona. Migrazione additiva `20261019120000_contabile_pagamenti_staff`.',
+  },
+
+  {
+    chiave: 'portafoglio-pagato-in-anticipo',
+    categoria: CODICE,
+    ordine: 5,
+    nata: '2026-10-19T10:00',
+    titolo: 'Portafoglio staff: mostrare «già pagato in anticipo» quando l\'admin paga il mese in corso',
+    dettaglio:
+      'Nato con «Registra pagamento» (19/10). Se l\'admin paga provvigioni del mese in corso, il portafoglio della persona '
+      + 'continua a dire «in maturazione» per quella cifra e «prelevato» per la stessa: i soldi non sono contati due volte '
+      + '(il prelevabile del mese dopo è giusto), ma letto così sembra che le spetti ancora. Il server manda già '
+      + '`anticipatoCents` da `/me/wallet`; manca mostrarlo in app (serve una OTA) e nel riquadro del backoffice.\n\n'
+      + '⚠️ Collegato e non fatto: la finestra delle richieste «dal 1 al 7» è scritta fissa in `payouts.service.ts` '
+      + '(WINDOW_FROM/WINDOW_TO) e non in `config_param`, contro la regola del progetto.',
+  },
+
 ];

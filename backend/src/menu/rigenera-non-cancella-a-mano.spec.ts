@@ -194,10 +194,21 @@ describe('il cambio di tipo dieta guarda le giornate a mano rimaste', () => {
    * ne ha una precisa è il modo di farla arrivare tardi.
    */
   it('⛔ scade il giorno prima della giornata da rivedere', async () => {
-    const { s, apri } = servizio([giorno], 'vegan', SALMONE);
-    await s.redeliverFutureDays('c1');
-    const scadenza = apri.mock.calls[0][0].data.dueDate as Date;
-    expect(scadenza.toISOString().slice(0, 10)).toBe('2026-09-19');
+    /**
+     * ⚠️ L'orologio è FERMO al 10/9 (19/10/2026): la scadenza è `max(adesso, giorno − 1)`, e senza
+     * orologio finto questa prova è diventata rossa da sola il 20/9, quando il 19/9 è passato.
+     * Si fingono solo le date: i timer veri restano, o le promesse del servizio non si chiudono.
+     */
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval', 'queueMicrotask'] });
+    jest.setSystemTime(new Date('2026-09-10T10:00:00Z'));
+    try {
+      const { s, apri } = servizio([giorno], 'vegan', SALMONE);
+      await s.redeliverFutureDays('c1');
+      const scadenza = apri.mock.calls[0][0].data.dueDate as Date;
+      expect(scadenza.toISOString().slice(0, 10)).toBe('2026-09-19');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   /** ⛔ E non blocca: se l'attività non si apre, il menu è stato erogato lo stesso. */

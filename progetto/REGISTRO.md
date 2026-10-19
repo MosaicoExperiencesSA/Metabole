@@ -18,6 +18,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-10-19
+
+- `[Sviluppo]` 💸 **Registra pagamento: lo staff si paga anche dal backoffice, con la contabile.** Simone, 19/10,
+  davanti a Compensi (4 persone, 449,55 €): *«le ho pagate tutte, come faccio a registrare il pagamento»* — e la
+  risposta era «non puoi». L'unica strada era la richiesta di prelievo della persona, che si apre **solo dal giorno 1
+  al 7** e vale **solo per i mesi chiusi**: chi paga di sua iniziativa, o paga il mese in corso, restava con un
+  bonifico fatto e un portafoglio che diceva «da pagare». Nuovo pulsante **«Registra pagamento»** in Richieste
+  prelievo (persona, importo, data del bonifico, con cosa, IBAN, nota, contabile) e **«Paga»** su ogni riga di
+  Compensi (visibile solo a chi apre Prelievi). La contabile si carica anche dopo, su qualunque pagamento fatto —
+  compresi quelli confermati da una richiesta — ed è cifrata come le ricevute.
+  ⚠️ **Il tetto è maturato TOTALE meno già pagato, non il «prelevabile»**: il prelevabile esclude il mese in corso
+  perché la persona non deve chiedere soldi che possono ancora cambiare; ma un bonifico già fatto rifiutato perché
+  «non ancora prelevabile» non sparisce, rende solo falso il registro. Il tetto resta per fermare il refuso. Le
+  richieste in attesa **non** si sottraggono: se l'admin paga a mano proprio quella, sottrarla bloccherebbe la
+  registrazione giusta (la finestra lo segnala). Il giudizio sta in `payouts/pagamento-manuale.ts`, puro.
+  Il pagamento entra in «Provvigioni pagate» di Contabilità nel mese della **data del bonifico** (mezzogiorno a
+  Roma, lontano dai confini), e la persona riceve mail e notifica — la mail non dice più «che avevi richiesto» a chi
+  non ha chiesto niente. Il portafoglio espone `anticipatoCents`: l'app ancora non lo mostra (voce nei Lavori).
+  ⚠️ L'importo scritto a mano: togliere sempre i punti trasformava «217.25» in 21.725 €. `lib/importo.ts` decide
+  dalla virgola. Migrazione additiva `20261019120000_contabile_pagamenti_staff` (cinque colonne, `manual` a false).
+  Prove: 9 sul servizio con un finto che **filtra davvero** per date e stato (portare il tetto sul solo prelevabile
+  fa rosse 3 prove; togliere il mezzogiorno o il «non richiesto» ne fa rossa una), 5 sul modulo puro, 5 sull'importo.
+- `[Sviluppo]` ⏰ **Una prova diventata rossa da sola**: `rigenera-non-cancella-a-mano.spec.ts`, «scade il giorno
+  prima della giornata da rivedere», aspettava il 19/9 su `max(adesso, giorno − 1)` senza orologio finto — dal 20/9
+  era rossa su `origin/main`. Orologio fermo al 10/9 dentro la prova; rimettere `Date.now()` nel codice la fa rossa.
+
 ## 2026-09-19
 
 - `[Sviluppo]` ⛔ **Due frittate di fila.** Reclamo di Simone del 19/9: il 21 e il 22 settembre la stessa

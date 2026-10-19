@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsBase64, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { IsBase64, IsIn, IsInt, IsOptional, IsString, Matches, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -16,6 +16,21 @@ class RequestWithdrawalDto {
   @IsInt() @Min(1) amountCents!: number;
   @IsString() @MinLength(15) @MaxLength(40) iban!: string;
   @IsOptional() @ValidateNested() @Type(() => WithdrawalReceiptDto) receipt?: WithdrawalReceiptDto;
+}
+
+/** Pagamento già fatto, registrato dall'admin senza richiesta della persona (19/10). */
+class ManualPaymentDto {
+  @IsString() @MinLength(1) @MaxLength(64) staffId!: string;
+  @IsInt() @Min(1) amountCents!: number;
+  @Matches(/^\d{4}-\d{2}-\d{2}$/) paidOn!: string;
+  @IsOptional() @IsString() @MaxLength(80) paidWith?: string;
+  @IsOptional() @IsString() @MaxLength(40) iban?: string;
+  @IsOptional() @IsString() @MaxLength(500) note?: string;
+  @IsOptional() @ValidateNested() @Type(() => WithdrawalReceiptDto) proof?: WithdrawalReceiptDto;
+}
+
+class ProofDto {
+  @ValidateNested() @Type(() => WithdrawalReceiptDto) proof!: WithdrawalReceiptDto;
 }
 
 class RejectWithdrawalDto {
@@ -55,9 +70,41 @@ export class AdminWithdrawalsController {
     return this.payouts.listWithdrawals(status);
   }
 
+  /** Chi si può pagare, con maturato, già pagato e residuo (finestra «Registra pagamento»). */
+  @Get('payees')
+  payees() {
+    return this.payouts.listPayees();
+  }
+
+  /**
+   * Le voci «con cosa hai pagato». Hanno una rotta loro e non quella di Contabilità
+   * (`accounting_costs`): chi gestisce i prelievi non deve per forza vedere i costi aziendali.
+   */
+  @Get('payment-methods')
+  paymentMethods() {
+    return this.payouts.metodiPagamento();
+  }
+
+  @HttpCode(201)
+  @Post('manual')
+  manual(@CurrentUser() user: AuthUser, @Body() dto: ManualPaymentDto) {
+    return this.payouts.registerManualPayment(user, dto);
+  }
+
   @Get(':id/receipt')
   receipt(@Param('id') id: string) {
     return this.payouts.downloadReceipt(id);
+  }
+
+  @Get(':id/proof')
+  proof(@Param('id') id: string) {
+    return this.payouts.downloadProof(id);
+  }
+
+  @HttpCode(200)
+  @Post(':id/proof')
+  uploadProof(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: ProofDto) {
+    return this.payouts.uploadProof(user, id, dto.proof);
   }
 
   @HttpCode(200)

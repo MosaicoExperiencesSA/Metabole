@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { I18nService } from '../i18n/i18n.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
+import { FUSO } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface Attachment {
@@ -330,14 +331,21 @@ export class MailService {
   /** Conferma allo staff che le provvigioni richieste sono state pagate. */
   async sendCommissionWithdrawalPaid(
     to: string,
-    input: { amountCents: number; iban: string; date: Date },
+    /**
+     * `richiesto: false` (19/10) = pagamento registrato dall'admin senza una richiesta: la mail non
+     * può dire «che avevi richiesto» a chi non ha chiesto niente. IBAN vuoto = pagato in altro modo,
+     * e la riga sparisce invece di dire «IBAN: ».
+     */
+    input: { amountCents: number; iban: string; date: Date; richiesto?: boolean },
     locale?: string | null,
   ): Promise<boolean> {
     const amount = (input.amountCents / 100).toFixed(2).replace('.', ',');
     const loc = this.i18n.normalize(locale);
+    const richiesto = input.richiesto !== false;
+    const ibanRiga = input.iban ? `<br/><b>IBAN:</b> ${input.iban}` : '';
     const html = loc === 'en'
-      ? `<p>Hi,</p><p>we have paid out your requested commissions.</p><p><b>Amount:</b> € ${amount}<br/><b>IBAN:</b> ${input.iban}<br/><b>Date:</b> ${input.date.toLocaleDateString('en-GB')}</p><p>Thank you for your work!</p>`
-      : `<p>Ciao,</p><p>abbiamo eseguito il bonifico delle provvigioni che avevi richiesto.</p><p><b>Importo:</b> € ${amount}<br/><b>IBAN:</b> ${input.iban}<br/><b>Data:</b> ${input.date.toLocaleDateString('it-IT')}</p><p>Grazie per il tuo lavoro!</p>`;
+      ? `<p>Hi,</p><p>${richiesto ? 'we have paid out your requested commissions.' : 'we have paid out your commissions.'}</p><p><b>Amount:</b> € ${amount}${ibanRiga}<br/><b>Date:</b> ${input.date.toLocaleDateString('en-GB', { timeZone: FUSO })}</p><p>Thank you for your work!</p>`
+      : `<p>Ciao,</p><p>${richiesto ? 'abbiamo eseguito il bonifico delle provvigioni che avevi richiesto.' : 'abbiamo eseguito il pagamento delle tue provvigioni.'}</p><p><b>Importo:</b> € ${amount}${ibanRiga}<br/><b>Data:</b> ${input.date.toLocaleDateString('it-IT', { timeZone: FUSO })}</p><p>Grazie per il tuo lavoro!</p>`;
     const subject = loc === 'en' ? 'Metabole — commissions paid' : 'Metabole — provvigioni pagate';
     return this.send({ to, subject, html, templateKey: 'commission_paid' });
   }
