@@ -45,13 +45,18 @@ describe('Richiamo ricorrente — lo scan', () => {
           .filter((r) => r.priceCents > prezzoMin)
           .filter((r) => {
             if (!range) return true;
-            const fine = new Date(Date.now() - r.endDateGiorniFa * 86_400_000);
+            // ⚠️ `endDate` è un GIORNO (mezzanotte UTC del giorno di Roma, come la scrive
+            // `subscriptionEnd` partendo dal giorno d'inizio), non un istante: si costruisce con la
+            // stessa funzione del codice. Con `Date.now() − N giorni` all'00:30 di Roma la data cadeva
+            // alle 22:30 UTC del giorno prima, fuori dalla finestra — rossa solo sotto `test:notte`,
+            // cioè nella CI, dal 12/9 (19/10).
+            const fine = oggiPiu(-r.endDateGiorniFa);
             return fine >= range.gte && fine < range.lt;
           })
           .map((r) => ({
             id: r.id,
             clientId: r.clientId,
-            endDate: new Date(Date.now() - r.endDateGiorniFa * 86_400_000),
+            endDate: oggiPiu(-r.endDateGiorniFa),
             client: { email: 'ex@test.it', firstName: 'Giulia', deletedAt: null, clientProfile: { name: 'Giulia', assignedCoach: { displayName: 'Marta' } } },
           }));
       }),

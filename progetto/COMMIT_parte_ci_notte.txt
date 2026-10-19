@@ -1,0 +1,18 @@
+CI: due prove rosse all ora pericolosa dal 12/9, piu la prova di Compensi
+
+La CI era rossa dal 12/9 nel solo passo test:notte (00:30 a Roma), per due file di quel giorno; non per i lavori del 19/10.
+
+- richiamo-ricorrente-scan.spec: il finto costruiva endDate come istante (adesso meno N giorni) mentre e un giorno; ora usa oggiPiu, la stessa funzione del codice.
+- menu-measurement-gate.spec, il piano comincia lunedi: ciclo scaduto da cinque giorni invece di tre, cosi la fotografia locked vale a qualunque ora.
+- compensi-scalano-il-pagato.spec (nuovo): la pagina Compensi usa davvero il pagato per mese (gia in 0a263fb).
+
+Prove: backend 504 suite / 8616 verdi sia con npm test sia con test:notte (TZ=UTC); verdi anche con ORA_FINTA al cambio dell ora e a capodanno.
+
+File:
+backend/src/marketing/richiamo-ricorrente-scan.spec.ts
+backend/src/menu/menu-measurement-gate.spec.ts
+backend/src/compensation/compensi-scalano-il-pagato.spec.ts (nuovo)
+backend/src/lavori/voci-iniziali.ts
+progetto/REGISTRO.md
+
+Niente migrazioni. Solo prove: nessun cambiamento al prodotto.

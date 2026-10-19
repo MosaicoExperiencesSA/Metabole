@@ -20,6 +20,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-10-19
 
+- `[Sviluppo]` 🌙 **La CI era rossa dal 12/9, solo nel passo «all'ora pericolosa».** Due file del 12/9 passavano di
+  giorno e cadevano sotto `test:notte` (00:30 a Roma), quindi in ogni CI da allora — non i lavori di oggi.
+  `richiamo-ricorrente-scan.spec.ts`: il finto costruiva `endDate` come istante (`adesso − N giorni`) mentre è un
+  **giorno** (lo scrive `subscriptionEnd` dal giorno d'inizio); all'00:30 cadeva alle 22:30 UTC del giorno prima,
+  fuori finestra. Ora usa `oggiPiu`, la funzione del codice. `menu-measurement-gate.spec.ts`, «il piano comincia
+  lunedì»: con il ciclo scaduto da tre giorni, all'00:30 le ore dalla scadenza erano sotto le 24 di grazia e la
+  fotografia diceva `popup`; con cinque giorni è `locked` a qualunque ora. Verde anche con ORA_FINTA al cambio
+  dell'ora (25/10, 29/3) e a capodanno. Più una prova della pagina Compensi (pagato e da pagare) già in `0a263fb`.
+
+- `[Sviluppo]` ➖ **Compensi scala i pagamenti.** Simone, 19/10, dopo il primo «Registra pagamento» a MariaStella:
+  *«le ho pagate a stella ma non le ha scalate»*. Compensi mostrava solo il **maturato** del mese: un pagamento non
+  cambiava niente. Due colonne nuove, **Pagato** e **Da pagare**, con i totali; «Paga» sparisce per chi è saldato
+  (diventa «saldato»: un secondo clic sarebbe un secondo bonifico registrato).
+  ⚠️ I pagamenti non hanno un mese: per dire quanto di **ottobre** è pagato si coprono i mesi **dal più vecchio**
+  (`compensation/pagato-per-mese.ts`, puro) — la stessa regola del portafoglio, dove il prelevabile è «mesi chiusi
+  meno pagato». Per questo la pagina legge tutti i mesi della persona, non solo quello guardato. Con «Tutto» è
+  maturato totale meno pagato. Le richieste in attesa non contano come pagate. Corretto anche il ruolo
+  `coach_coordinator`, che usciva grezzo: la pagina ora parte dalle etichette comuni di `labels.ts`.
+  Prove: 6 sul modulo puro, 3 sulla pagina con un finto che filtra date, persona e stato (passare sempre «Tutto»
+  o contare anche le richieste in attesa fa rosse 2 prove).
+
 - `[Sviluppo]` 📬 **Invito a Gaia: il report del mattino a Giusy.** Simone, 19/10, sulle caselle «Hanno cliccato»
   e «Sono entrate»: *«questi due report vanno mandati giornalmente via mail a giusy@metabole.eu»*. Ogni notte il
   cron `daily` (05:00 UTC, le 7 a Roma d'estate) manda i due elenchi — nome che porta alla scheda lead, email,

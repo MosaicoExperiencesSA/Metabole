@@ -203,9 +203,9 @@ describe('MenuService — gate misure', () => {
    */
   describe('⛔ chi non ha più un piano', () => {
     /** Il ciclo è scaduto da tre giorni e nessuno si è pesato: tutto pronto per bloccare. */
-    const cicloScadutoSenzaMisure = (subscription: unknown, monitoraggio: unknown = null) => ({
+    const cicloScadutoSenzaMisure = (subscription: unknown, monitoraggio: unknown = null, giorniFa = 3) => ({
       subscription,
-      menuDay: menuDayFinto({ date: D(dayIso(-3)) }),
+      menuDay: menuDayFinto({ date: D(dayIso(-giorniFa)) }),
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
       monitoringPeriod: { findFirst: jest.fn().mockResolvedValue(monitoraggio) },
@@ -293,10 +293,14 @@ describe('MenuService — gate misure', () => {
         findMany: jest.fn().mockResolvedValue([
           { id: 'sub', status: 'queued', startDate: D(dayIso(2)), endDate: D(dayIso(32)), plan: { period: '1m' } },
         ]),
-      });
+      // ⚠️ Cinque giorni e non tre (19/10): con tre, all'00:30 di Roma le ore dalla scadenza del ciclo
+      // erano meno delle 24 di grazia e la «fotografia» qui sotto diceva `popup` — rossa solo sotto
+      // `test:notte`, cioè nella CI, dal 12/9. Con cinque il ciclo è scaduto da oltre un giorno a
+      // qualunque ora, e la riga torna a fotografare il difetto che deve fotografare.
+      }, null, 5);
       const res = await makeService(prisma).measurementGate('c1');
       expect(res.required).toBe(true);
-      expect(res.cycleDate).toBe(dayIso(-3));
+      expect(res.cycleDate).toBe(dayIso(-5));
       /**
        * ⛔ **QUESTA RIGA DICE UNA COSA CHE NON VA, e la dice apposta** (trovata dalla revisione
        * avversariale, 12/9 — difetto **preesistente**, non introdotto dal cancello).

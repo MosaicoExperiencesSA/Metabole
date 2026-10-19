@@ -1,0 +1,21 @@
+Compensi: colonne Pagato e Da pagare, i pagamenti si scalano
+
+Compensi mostrava solo il maturato del mese: un pagamento registrato non cambiava niente (Simone: le ho pagate a Stella ma non le ha scalate).
+
+- Colonne Pagato e Da pagare, con i totali in fondo e nell export Excel.
+- I pagamenti coprono prima i mesi piu vecchi (compensation/pagato-per-mese.ts, puro): guardando ottobre si vede quanto di ottobre e pagato. Con Tutto: maturato totale meno pagato. Le richieste in attesa non contano.
+- Chi e saldato non ha piu il pulsante Paga (mostra saldato).
+- Ruolo coach_coordinator non piu grezzo: la pagina parte dalle etichette comuni di labels.ts.
+
+Prove: backend 504 suite verdi con TZ=UTC, build verde; backoffice 377 verdi, build verde. Mutazioni: sempre Tutto = 2 rosse; richieste in attesa contate = 2 rosse.
+
+File:
+backend/src/compensation/pagato-per-mese.ts (nuovo)
+backend/src/compensation/pagato-per-mese.spec.ts (nuovo)
+backend/src/compensation/compensi-scalano-il-pagato.spec.ts (nuovo)
+backend/src/compensation/compensation.controller.ts
+backoffice/src/pages/Compensi.tsx
+backend/src/lavori/voci-iniziali.ts
+progetto/REGISTRO.md
+
+Niente migrazioni. Nessuna variabile d ambiente, nessuna dipendenza, niente app.

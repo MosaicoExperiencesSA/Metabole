@@ -7566,4 +7566,18 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'con giusy@metabole.eu. Nessuna migrazione, nessun cron nuovo.',
   },
 
+  {
+    chiave: 'compensi-scalano-il-pagato',
+    fatta: true,
+    categoria: SIMONE,
+    ordine: 1,
+    nata: '2026-10-19T23:00',
+    titolo: '➖ Compensi: i pagamenti registrati si scalano (colonne Pagato e Da pagare)',
+    dettaglio:
+      'Simone, 19/10: *«le ho pagate a stella ma non le ha scalate»*.\n\n'
+      + '✅ **FATTO (19/10)**: Compensi ha le colonne Pagato e Da pagare, con i totali; chi è saldato non ha più «Paga». '
+      + 'I pagamenti coprono prima i mesi più vecchi (stessa regola del portafoglio), quindi guardando un mese si vede '
+      + 'quanto di QUEL mese è stato pagato. Le richieste in attesa non contano. Nessuna migrazione.',
+  },
+
 ];
