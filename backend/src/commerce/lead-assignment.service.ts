@@ -228,10 +228,12 @@ export class LeadAssignmentService {
     // "Invia credenziali", questionario mai compilato) aggiornava ZERO righe in silenzio
     // e l'assegnazione si perdeva. Ora, se manca, il profilo viene creato.
     if (record.clientId && staffId) {
-      await agganciaAssegnazioneAlProfilo(this.prisma, record.clientId, {
-        name: record.name,
-        assignedCoachId: staffId,
-      });
+      await agganciaAssegnazioneAlProfilo(
+        this.prisma,
+        record.clientId,
+        { name: record.name, assignedCoachId: staffId },
+        { sovrascriviCoach: true },
+      );
     }
     if (record.assignedBy?.userId) {
       await this.notifications.notify({

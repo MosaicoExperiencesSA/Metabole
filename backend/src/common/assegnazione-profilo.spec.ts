@@ -33,6 +33,19 @@ describe('agganciaAssegnazioneAlProfilo', () => {
     expect(p.clientProfile.update).not.toHaveBeenCalled();
   });
 
+  /** ⛔ Caso Jessica 5/11: riassegnata in Gestione lead, la coach nuova accetta, la scheda deve passare a lei. */
+  it('⛔ con sovrascriviCoach (solo accept del lead) una coach vera in scheda viene sostituita', async () => {
+    const p = prismaFinto({ assignedCoachId: 'st-mariastella', assignedNutritionistId: null }, 'st-giusy');
+    expect(await agganciaAssegnazioneAlProfilo(p as never, 'u1', { assignedCoachId: 'st-daniela' }, { sovrascriviCoach: true })).toBe('completato');
+    expect(p.clientProfile.update).toHaveBeenCalledWith(expect.objectContaining({ data: { assignedCoachId: 'st-daniela' } }));
+  });
+
+  it('⚠️ con sovrascriviCoach e la stessa coach già in scheda non scrive niente', async () => {
+    const p = prismaFinto({ assignedCoachId: 'st-daniela', assignedNutritionistId: null }, 'st-giusy');
+    expect(await agganciaAssegnazioneAlProfilo(p as never, 'u1', { assignedCoachId: 'st-daniela' }, { sovrascriviCoach: true })).toBe('gia_assegnato');
+    expect(p.clientProfile.update).not.toHaveBeenCalled();
+  });
+
   /** ⛔ Il caso che la revisione avversariale ha trovato: la coach accetta il lead il giorno dopo il giro notturno. */
   it('⛔ la RISERVA in scheda invece si sostituisce: la coach che accetta il lead entra', async () => {
     const p = prismaFinto({ assignedCoachId: 'st-giusy', assignedNutritionistId: null }, 'st-giusy');

@@ -7580,4 +7580,31 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'quanto di QUEL mese è stato pagato. Le richieste in attesa non contano. Nessuna migrazione.',
   },
 
+  {
+    chiave: 'accetta-lead-passa-la-scheda',
+    fatta: true,
+    categoria: SIMONE,
+    ordine: 1,
+    nata: '2026-11-05T12:00',
+    titolo: '🔁 Lead riassegnato e accettato: la scheda cliente passa alla coach nuova',
+    dettaglio:
+      'Simone, 5/11: *«la cliente è stata riassegnata a Daniela Moreno che la ha accettata ma non la vede»* (Jessica).\n\n'
+      + '✅ **FATTO (5/11)**: `accept()` del lead passa `sovrascriviCoach` al ponte lead→profilo, che prima riempiva solo '
+      + 'il vuoto e lasciava la coach vecchia in scheda. Solo lì: credenziali, onboarding, invito Gaia e referral invariati. '
+      + 'Jessica sistemata a mano. Nessuna migrazione.',
+  },
+
+  {
+    chiave: 'diag-coach-lead-scheda',
+    categoria: SIMONE,
+    ordine: 1,
+    nata: '2026-11-05T13:00',
+    titolo: '🔎 Lanciare `npm run diag:coach-lead-scheda` e sistemare le clienti rimaste a metà',
+    dettaglio:
+      'Dopo la correzione del 5/11 le accettazioni nuove sono a posto, ma quelle di prima possono avere il lead a una coach '
+      + 'e la scheda a un\'altra. Lo script (shell di Render, legge e basta) le elenca con la data di accettazione.\n\n'
+      + '⚠️ Non correggere in blocco: se dopo l\'accettazione la cliente è stata spostata a mano dalla scheda, ha ragione la '
+      + 'scheda. Si guarda caso per caso e si corregge dal riquadro «Team assegnato».',
+  },
+
 ];

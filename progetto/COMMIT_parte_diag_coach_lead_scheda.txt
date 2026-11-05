@@ -1,0 +1,11 @@
+==================== 2026-11-05 · diagnostica coach lead/scheda + pagina Lavori ====================
+SUMMARY:
+Diagnostica clienti con coach diversa fra lead e scheda, e voci in Lavori
+
+DESCRIPTION:
+Dopo la correzione di accept() restano le clienti accettate prima, con il lead a una coach e la scheda a un'altra.
+
+- prisma/diag-coach-lead-scheda.ts + npm run diag:coach-lead-scheda: le elenca con la data di accettazione. Legge e basta.
+- voci-iniziali.ts: due voci in Lavori (correzione fatta, diagnostica da lanciare).
+
+Niente migrazioni.

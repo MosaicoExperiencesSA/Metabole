@@ -34,6 +34,7 @@
     "diag:varieta": "ts-node --transpile-only prisma/diag-varieta-menu.ts",
     "diag:fabbisogno-media": "ts-node --transpile-only prisma/diag-fabbisogno-media.ts",
     "diag:permesso-tipo-dieta": "ts-node --transpile-only prisma/diag-permesso-tipo-dieta.ts",
+    "diag:coach-lead-scheda": "ts-node --transpile-only prisma/diag-coach-lead-scheda.ts",
     "diag:titolare-lead": "ts-node --transpile-only prisma/diag-titolare-lead.ts",
     "diag:colazioni-con-carne": "ts-node --transpile-only prisma/diag-colazioni-con-carne.ts",
     "diag:pasti-disallineati": "ts-node --transpile-only prisma/diag-pasti-disallineati.ts",

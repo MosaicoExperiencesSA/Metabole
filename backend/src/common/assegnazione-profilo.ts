@@ -37,6 +37,16 @@ import { idDellaRiserva } from './coach-di-riserva-chiave';
  * difetto del 6/8 che questo ponte esiste per chiudere**, riaperto dalla riserva. Una revisione
  * avversariale l'ha visto prima che uscisse. ⚠️ Vale solo per la riserva: una coach vera in scheda
  * non si sovrascrive mai, come prima.
+ *
+ * ## ⛔ Dal 5/11 l'eccezione `sovrascriviCoach` — SOLO per l'accettazione del lead
+ *
+ * Caso Jessica: riassegnata in Gestione lead da MariaStella a Daniela, Daniela accetta, il CRM dice
+ * «Daniela · accettato» e la scheda resta di MariaStella — la regola 1 aveva risposto «già
+ * assegnato». Ma una riassegnazione fatta da un responsabile e accettata dalla coach È l'atto
+ * esplicito di cui parla la regola 1: in `accept()` arrivano solo assegnazioni manuali
+ * (`assignCoach` / `assignCoachMany`; il ref code nasce già «accepted» e non ci passa). Perciò
+ * `accept()` passa `sovrascriviCoach: true`. ⚠️ Nessun altro chiamante deve passarlo: credenziali,
+ * onboarding, invito Gaia e referral restano «riempi solo il vuoto».
  */
 export type EsitoAggancio = 'creato' | 'completato' | 'gia_assegnato' | 'niente_da_fare';
 
@@ -44,6 +54,7 @@ export async function agganciaAssegnazioneAlProfilo(
   prisma: PrismaService,
   userId: string,
   rec: { name?: string | null; assignedCoachId: string | null; assignedNutritionistId?: string | null },
+  opzioni: { sovrascriviCoach?: boolean } = {},
 ): Promise<EsitoAggancio> {
   const coachId = rec.assignedCoachId ?? null;
   const nutriId = rec.assignedNutritionistId ?? null;
@@ -68,7 +79,8 @@ export async function agganciaAssegnazioneAlProfilo(
 
   const patch: { assignedCoachId?: string; assignedNutritionistId?: string } = {};
   const riservaId = coachId && prof.assignedCoachId && prof.assignedCoachId !== coachId ? await idDellaRiserva(prisma) : null;
-  const coachSostituibile = !prof.assignedCoachId || (riservaId !== null && prof.assignedCoachId === riservaId);
+  const coachSostituibile =
+    opzioni.sovrascriviCoach === true || !prof.assignedCoachId || (riservaId !== null && prof.assignedCoachId === riservaId);
   if (coachId && coachSostituibile && coachId !== prof.assignedCoachId) patch.assignedCoachId = coachId;
   if (nutriId && !prof.assignedNutritionistId) patch.assignedNutritionistId = nutriId;
   if (Object.keys(patch).length === 0) return 'gia_assegnato';

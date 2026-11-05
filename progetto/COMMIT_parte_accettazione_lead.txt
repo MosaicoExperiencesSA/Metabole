@@ -1,0 +1,12 @@
+==================== 2026-11-05 · accettazione lead riassegnato → scheda cliente ====================
+SUMMARY:
+Accettazione lead: la coach nuova prende anche la scheda cliente
+
+DESCRIPTION:
+Una cliente riassegnata in Gestione lead e accettata dalla coach nuova restava in scheda alla coach vecchia (caso Jessica: CRM a Daniela, scheda a MariaStella). agganciaAssegnazioneAlProfilo non sovrascrive mai una coach vera, per regola del 6/8.
+
+- assegnazione-profilo.ts: nuova opzione sovrascriviCoach.
+- lead-assignment.service.ts: accept() la passa (solo qui; gli altri chiamanti restano «riempi il vuoto»).
+- assegnazione-profilo.spec.ts: due prove nuove.
+
+I casi già rimasti a metà vanno corretti a mano dalla scheda. Niente migrazioni.
