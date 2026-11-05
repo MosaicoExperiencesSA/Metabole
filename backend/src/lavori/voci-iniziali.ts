@@ -7596,6 +7596,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'diag-coach-lead-scheda',
+    fatta: true,
     categoria: SIMONE,
     ordine: 1,
     nata: '2026-11-05T13:00',
@@ -7604,7 +7605,8 @@ export const VOCI_INIZIALI: Voce[] = [
       'Dopo la correzione del 5/11 le accettazioni nuove sono a posto, ma quelle di prima possono avere il lead a una coach '
       + 'e la scheda a un\'altra. Lo script (shell di Render, legge e basta) le elenca con la data di accettazione.\n\n'
       + '⚠️ Non correggere in blocco: se dopo l\'accettazione la cliente è stata spostata a mano dalla scheda, ha ragione la '
-      + 'scheda. Si guarda caso per caso e si corregge dal riquadro «Team assegnato».',
+      + 'scheda. Si guarda caso per caso e si corregge dal riquadro «Team assegnato».\n\n'
+      + '✅ **FATTO (5/11)**: lanciato in produzione, 127 lead accettati con cliente registrata, 0 storti. Jessica era l\'unica, già sistemata a mano.',
   },
 
 ];

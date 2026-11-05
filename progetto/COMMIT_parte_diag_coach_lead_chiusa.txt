@@ -1,0 +1,8 @@
+==================== 2026-11-05 · Lavori: diagnostica coach lead/scheda chiusa ====================
+SUMMARY:
+Lavori: chiusa la verifica coach lead/scheda (0 casi)
+
+DESCRIPTION:
+diag:coach-lead-scheda lanciato in produzione: 127 lead accettati con cliente registrata, 0 con la coach del lead diversa da quella in scheda. Jessica era l'unica, già sistemata a mano. Spuntata la voce in voci-iniziali.ts.
+
+Niente migrazioni.
