@@ -1,0 +1,10 @@
+diag:opt-out in produzione: il webhook arriva, la coda ha 57.672 indirizzi su domini buoni
+
+Esito del 6/11: 6600 inviti in 30 giorni, 397 hard_bounce registrati (6,02%), 138 disiscritti, 5 spam. Il webhook transazionale funziona: niente da collegare su Brevo.
+Coda: 58.572 righe, 251 scritte male, 648 su domini senza posta. Il filtro MX toglierebbe solo l 1,5%: il resto dei rimbalzi sono caselle chiuse su domini veri, serve una verifica a pagamento.
+
+- Pagina Lavori: spuntata la voce del webhook transazionale, aggiornata coi numeri quella della pulizia coda.
+- REGISTRO: voce con l esito.
+
+File: backend/src/lavori/voci-iniziali.ts, progetto/REGISTRO.md
+Niente migrazioni, niente variabili nuove, niente dipendenze.

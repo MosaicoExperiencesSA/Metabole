@@ -7626,7 +7626,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'brevo-webhook-transazionale-collegato',
-    fatta: false,
+    fatta: true,
     categoria: SIMONE,
     ordine: 1,
     nata: '2026-11-06T16:00',
@@ -7638,7 +7638,9 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'In quel caso: Brevo → Transazionale → Impostazioni → Webhook, indirizzo '
       + '`https://metabole-backend.onrender.com/api/v1/marketing/webhook/brevo?token=<BREVO_WEBHOOK_SECRET>`, eventi '
       + 'hard_bounce, invalid_email, blocked, spam, unsubscribed. ⚠️ Senza `BREVO_WEBHOOK_SECRET` su Render il webhook '
-      + 'risponde 401 a tutto.',
+      + 'risponde 401 a tutto.\n\n'
+      + '✅ **FATTO (6/11)**: lanciato in produzione, il webhook ARRIVA. 6600 inviti in 30 giorni, 397 hard_bounce registrati '
+      + '(6,02%), 138 disiscritti dal link preferenze, 5 spam. Non c\'era niente da collegare.',
   },
 
   {
@@ -7666,7 +7668,11 @@ export const VOCI_INIZIALI: Voce[] = [
       'Il webhook impara solo dopo il rimbalzo: ogni indirizzo morto rimbalza comunque una volta, e con 100 indirizzi '
       + 'vecchi nuovi al giorno il bounce si rigenera ogni giorno. Serve un controllo prima dell\'invio: almeno che il '
       + 'dominio riceva posta (record MX), meglio un servizio di verifica degli indirizzi sulla coda che resta. '
-      + '`diag:opt-out` dice quanti sono in coda e su quali domini.',
+      + '`diag:opt-out` dice quanti sono in coda e su quali domini.\n\n'
+      + 'Misurato il 6/11: 58.572 in coda, 58.320 indirizzi diversi scritti bene, 251 scritti male, 648 su domini senza '
+      + 'posta (gmail.con, gmal.com, libeto.it…). Restano 57.672 con un dominio buono: il controllo MX ne toglie appena '
+      + 'l\'1,5%. Il 6% di rimbalzi sono caselle chiuse su domini veri (Libero, Gmail, Hotmail) e lì serve un servizio di '
+      + 'verifica a pagamento. Passano l\'MX anche refusi con un dominio vero dietro: gimail.com (142), gmail.it (175).',
   },
 
   {
