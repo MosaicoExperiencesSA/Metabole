@@ -78,7 +78,7 @@ export function emailPlausibile(email: string | null | undefined): boolean {
   return /^[^\s@<>"',;()\[\]\\]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,}$/.test((email ?? '').trim());
 }
 
-export type MotivoScarto = 'saltato:email' | 'saltato:doppione' | 'saltato:account' | 'saltato:consenso' | 'saltato:canale';
+export type MotivoScarto = 'saltato:email' | 'saltato:dominio' | 'saltato:doppione' | 'saltato:account' | 'saltato:consenso' | 'saltato:canale';
 
 /**
  * Perché una scheda NON riceve l'invito, o `null` se lo riceve. L'ordine conta: prima l'indirizzo
@@ -86,7 +86,8 @@ export type MotivoScarto = 'saltato:email' | 'saltato:doppione' | 'saltato:accou
  * - `giaVisti`: indirizzi già presi in questo giro o già invitati;
  * - `conAccount`: indirizzi che hanno un account (anche su una scheda non collegata);
  * - `consentita`: false se i filtri di consenso delle campagne l'hanno tolta;
- * - `canali`: i canali che ha scelto; se ne ha scelti e l'email non c'è, non si scrive.
+ * - `canali`: i canali che ha scelto; se ne ha scelti e l'email non c'è, non si scrive;
+ * - `senzaPosta`: i domini che non ricevono posta (`PostaDeiDomini`, 6/11) — un invio sarebbe un rimbalzo.
  */
 export function motivoScarto(
   email: string | null | undefined,
@@ -94,9 +95,12 @@ export function motivoScarto(
   conAccount: Set<string>,
   consentita: boolean,
   canali: string[] | null | undefined,
+  senzaPosta: Set<string> = new Set(),
 ): MotivoScarto | null {
   if (!emailPlausibile(email)) return 'saltato:email';
   const e = (email as string).trim().toLowerCase();
+  // 6/11: il dominio non riceve posta (gmail.con, libeto.it…) — l'invio sarebbe solo un rimbalzo.
+  if (senzaPosta.has(e.slice(e.lastIndexOf('@') + 1))) return 'saltato:dominio';
   if (giaVisti.has(e)) return 'saltato:doppione';
   if (conAccount.has(e)) return 'saltato:account';
   if (!consentita) return 'saltato:consenso';

@@ -26,6 +26,7 @@ import {
   verificaTokenInvito,
 } from './regole';
 import { paginaCancellami, paginaCancellata, paginaInizio, paginaLinkNonValido } from './pagine';
+import { PostaDeiDomini } from './posta-del-dominio';
 
 /**
  * INVITO A GAIA — il motore (16/9, richiesta di Simone).
@@ -117,6 +118,7 @@ export class InvitoGaiaService {
     private readonly config: ConfigService,
     private readonly params: ConfigParamsService,
     private readonly marketing: MarketingService,
+    private readonly posta: PostaDeiDomini,
   ) {}
 
   // ---------- Indirizzi e segreti ----------
@@ -239,10 +241,11 @@ export class InvitoGaiaService {
       if (!lotto.length) return inviati;
       const consentite = new Set((await this.marketing.filtraConsensi(lotto)).map((c) => c.id));
       const { giaVisti, conAccount } = await this.indirizziDaEscludere(lotto.map((c) => c.email ?? ''));
+      const senzaPosta = await this.posta.senzaPosta(lotto.map((c) => c.email));
       let righeNuove = 0;
       for (const r of lotto) {
         if ((await this.contatiOggi(new Date())) >= tetto) return inviati;
-        const motivo = motivoScarto(r.email, giaVisti, conAccount, consentite.has(r.id), r.consentChannels);
+        const motivo = motivoScarto(r.email, giaVisti, conAccount, consentite.has(r.id), r.consentChannels, senzaPosta);
         const email = motivo ? null : (r.email as string).trim().toLowerCase();
         let riga: { id: string } | null = null;
         try {

@@ -8,7 +8,7 @@ const ADESSO = new Date('2026-09-16T08:00:00Z');
 
 type Param = Record<string, string>;
 
-function costruisci(opz: { params?: Param; lotti?: unknown[][]; utenti?: unknown[]; invitati?: unknown[]; oggi?: number; modello?: unknown; promemoria?: unknown[]; falliti?: unknown[] } = {}) {
+function costruisci(opz: { params?: Param; lotti?: unknown[][]; utenti?: unknown[]; invitati?: unknown[]; oggi?: number; modello?: unknown; promemoria?: unknown[]; falliti?: unknown[]; senzaPosta?: string[] } = {}) {
   const params: Param = {
     gaia_invito_attivo: 'true',
     gaia_invito_al_giorno: '100',
@@ -75,8 +75,9 @@ function costruisci(opz: { params?: Param; lotti?: unknown[][]; utenti?: unknown
     prefsPageUrlForToken: jest.fn((t: string) => `https://app.metabole.eu/preferenze?t=${t}`),
     oneClickUnsubscribe: jest.fn().mockResolvedValue({ unsubscribed: true }),
   };
-  const svc = new InvitoGaiaService(prisma as never, mail as never, audit as never, config as never, configParams as never, marketing as never);
-  return { svc, prisma, mail, audit, configParams, marketing };
+  const posta = { senzaPosta: jest.fn().mockResolvedValue(new Set(opz.senzaPosta ?? [])) };
+  const svc = new InvitoGaiaService(prisma as never, mail as never, audit as never, config as never, configParams as never, marketing as never, posta as never);
+  return { svc, prisma, mail, audit, configParams, marketing, posta };
 }
 
 const lead = (id: string, email: string | null, extra: Record<string, unknown> = {}) => ({ id, email, name: 'MARIA ROSSI', firstName: null, clientId: null, consentChannels: [], ...extra });
@@ -126,6 +127,15 @@ describe('InvitoGaiaService — il giro', () => {
     const w = f.prisma.gaiaInvite.count.mock.calls[0][0].where;
     expect(w.ultimoTentativoAt.gte.toISOString()).toBe('2026-09-15T22:00:00.000Z');
     expect(w.NOT).toEqual({ esito: { startsWith: 'saltato' } });
+  });
+
+  it('6/11: un dominio che non riceve posta esce dalla coda con saltato:dominio e non parte niente', async () => {
+    const f = costruisci({ senzaPosta: ['gmail.con'], lotti: [[lead('r1', 'mario@gmail.con'), lead('r2', 'anna@example.com')]] });
+    expect((await f.svc.giro(ADESSO)).inviti).toBe(1);
+    expect(f.posta.senzaPosta).toHaveBeenCalledWith(['mario@gmail.con', 'anna@example.com']);
+    expect(esitiCreati(f)).toEqual([['r1', 'saltato:dominio', null], ['r2', 'invio', 'anna@example.com']]);
+    expect(f.mail.send).toHaveBeenCalledTimes(1);
+    expect(f.mail.send.mock.calls[0][0].to).toBe('anna@example.com');
   });
 
   it('quota già piena: non legge i lead', async () => {

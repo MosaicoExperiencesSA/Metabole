@@ -32,31 +32,31 @@ describe('MarketingService.handleBrevoWebhook', () => {
 
   it('invalid_email dal webhook transazionale esclude l indirizzo', async () => {
     const { service, upsert } = await monta();
-    await service.handleBrevoWebhook(SEGRETO, { event: 'invalid_email', email: ' Mario.Rossi@Libero.it ' });
+    await service.handleBrevoWebhook(SEGRETO, { event: 'invalid_email', email: ' Mario.Rossi@Example.COM ' });
     expect(upsert).toHaveBeenCalledTimes(1);
     expect(upsert).toHaveBeenCalledWith({
-      where: { email: 'mario.rossi@libero.it' },
-      create: { email: 'mario.rossi@libero.it', reason: 'invalid_email', source: 'brevo' },
+      where: { email: 'mario.rossi@example.com' },
+      create: { email: 'mario.rossi@example.com', reason: 'invalid_email', source: 'brevo' },
       update: { reason: 'invalid_email' },
     });
   });
 
   it('il nome scritto all altro modo (hardBounce) scrive il motivo canonico', async () => {
     const { service, upsert } = await monta();
-    await service.handleBrevoWebhook(SEGRETO, { event: 'hardBounce', email: 'a@virgilio.it' });
+    await service.handleBrevoWebhook(SEGRETO, { event: 'hardBounce', email: 'a@example.com' });
     expect(upsert.mock.calls[0][0].create.reason).toBe('hard_bounce');
   });
 
   it('un elenco di eventi: scrive solo quelli che escludono', async () => {
     const { service, upsert } = await monta();
     const r = await service.handleBrevoWebhook(SEGRETO, [
-      { event: 'soft_bounce', email: 'piena@libero.it' },
-      { event: 'delivered', email: 'ok@gmail.com' },
-      { event: 'hard_bounce', email: 'morta@libero.it' },
+      { event: 'soft_bounce', email: 'piena@example.com' },
+      { event: 'delivered', email: 'ok@example.com' },
+      { event: 'hard_bounce', email: 'morta@example.com' },
       { event: 'spam', email: '' },
     ]);
     expect(upsert).toHaveBeenCalledTimes(1);
-    expect(upsert.mock.calls[0][0].where.email).toBe('morta@libero.it');
+    expect(upsert.mock.calls[0][0].where.email).toBe('morta@example.com');
     expect(r).toEqual({ ok: true, processed: 4, optedOut: 1 });
   });
 

@@ -89,6 +89,10 @@ describe('invito a Gaia — le regole (16/9)', () => {
       expect(motivoScarto('anna@example.com', vuoto, new Set(['anna@example.com']), false, [])).toBe('saltato:account');
       expect(motivoScarto('anna@example.com', vuoto, vuoto, false, [])).toBe('saltato:consenso');
       expect(motivoScarto('anna@example.com', vuoto, vuoto, true, ['whatsapp'])).toBe('saltato:canale');
+      // 6/11: dominio che non riceve posta; viene subito dopo l indirizzo malformato
+      expect(motivoScarto(' Anna@Gmail.CON ', vuoto, vuoto, true, [], new Set(['gmail.con']))).toBe('saltato:dominio');
+      expect(motivoScarto('anna@gmail.con', new Set(['anna@gmail.con']), vuoto, false, [], new Set(['gmail.con']))).toBe('saltato:dominio');
+      expect(motivoScarto('anna@example.com', vuoto, vuoto, true, [], new Set(['gmail.con']))).toBeNull();
     });
     it('canali non scelti o email fra i canali: si scrive', () => {
       expect(motivoScarto('anna@example.com', vuoto, vuoto, true, [])).toBeNull();

@@ -8,11 +8,12 @@ import { MarketingService } from './marketing.service';
 import { LifecycleService } from './lifecycle.service';
 import { InvitoGaiaController, InvitoGaiaPubblicoController } from './invito-gaia/invito-gaia.controller';
 import { InvitoGaiaService } from './invito-gaia/invito-gaia.service';
+import { PostaDeiDomini } from './invito-gaia/posta-del-dominio';
 
 @Module({
   imports: [CommerceModule, ConfigParamsModule],
   controllers: [MarketingController, MarketingWebhookController, PrefsController, UnsubscribeController, InvitoGaiaController, InvitoGaiaPubblicoController],
-  providers: [MarketingService, LifecycleService, InvitoGaiaService],
+  providers: [MarketingService, LifecycleService, InvitoGaiaService, PostaDeiDomini],
   exports: [MarketingService, LifecycleService, InvitoGaiaService],
 })
 export class MarketingModule {}

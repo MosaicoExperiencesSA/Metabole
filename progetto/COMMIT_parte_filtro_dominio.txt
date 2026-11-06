@@ -1,0 +1,15 @@
+Invito a Gaia: filtro sul dominio prima dell invio + CI di nuovo verde
+
+CI rossa sul commit 480f5b8: la guardia common/email-nei-file.spec.ts vieta indirizzi realistici nei file versionati e brevo-webhook.spec.ts ne usava. Prove passate su example.com e x.it.
+
+Filtro (invito-gaia/posta-del-dominio.ts, nuovo): prima dell invio si guarda se il dominio dell indirizzo riceve posta. Dominio inesistente o null MX: scartato. Senza MX decide l indirizzo A/AAAA. Nel dubbio (DNS lento o rotto) si manda: lo scarto è per sempre, un guasto DNS no. Risposte ricordate un giorno, un dominio si chiede una volta.
+- regole.ts: nuovo motivo saltato:dominio, subito dopo l indirizzo malformato; etichetta in elenco.ts.
+- invito-gaia.service.ts: il giro chiede i domini senza posta di ogni lotto; PostaDeiDomini registrato in marketing.module.ts.
+- Toglie dalla coda i ~648 indirizzi su domini morti misurati da diag:opt-out (gmail.con, gmal.com, libeto.it). Le caselle chiuse su domini veri restano.
+- Prove nuove: posta-del-dominio.spec.ts, regole.spec.ts, il giro in invito-gaia.service.spec.ts. Mutazioni verificate.
+- Pagina Lavori: pulizia coda spuntata, nuova voce verifica a pagamento, tetto a 150 deciso.
+
+Backend intero sul Mac: 507 suite verdi. tsc del build pulito.
+
+File: backend/src/marketing/invito-gaia/posta-del-dominio.ts, backend/src/marketing/invito-gaia/posta-del-dominio.spec.ts, backend/src/marketing/invito-gaia/regole.ts, backend/src/marketing/invito-gaia/regole.spec.ts, backend/src/marketing/invito-gaia/elenco.ts, backend/src/marketing/invito-gaia/invito-gaia.service.ts, backend/src/marketing/invito-gaia/invito-gaia.service.spec.ts, backend/src/marketing/invito-gaia/report-giornaliero.service.spec.ts, backend/src/marketing/marketing.module.ts, backend/src/marketing/brevo-webhook.spec.ts, backend/prisma/diag-opt-out.ts, backend/src/lavori/voci-iniziali.ts, progetto/REGISTRO.md
+Niente migrazioni, niente variabili nuove, niente dipendenze.

@@ -45,6 +45,7 @@ export function nomeECognome(r: { firstName?: string | null; lastName?: string |
 
 const MOTIVI: Record<string, string> = {
   'saltato:email': 'Indirizzo email non valido',
+  'saltato:dominio': 'Il dominio dell’indirizzo non riceve posta (es. gmail.con)',
   'saltato:doppione': 'Indirizzo già invitato con un’altra scheda',
   'saltato:account': 'Ha già un account',
   'saltato:consenso': 'Si è disiscritta o ha negato il consenso',

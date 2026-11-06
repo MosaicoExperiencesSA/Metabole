@@ -89,8 +89,8 @@ async function main(): Promise<void> {
   for (const [d, n] of [...perDominio].sort((a, b) => b[1] - a[1]).slice(0, 15)) console.log(`    ${d.padEnd(24)} ${n}`);
 
   // Quanti sono DAVVERO: indirizzi diversi, scritti bene, su un dominio che riceve posta (record MX).
-  // ⚠️ Un MX buono dice che il DOMINIO riceve posta, non che la CASELLA esiste: mario.rossi@libero.it
-  // chiusa nel 2015 passa questo controllo. Quello lo sa solo un servizio di verifica.
+  // ⚠️ Un MX buono dice che il DOMINIO riceve posta, non che la CASELLA esiste: una casella
+  // chiusa da anni su libero.it passa questo controllo. Quello lo sa solo un servizio di verifica.
   const SINTASSI = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
   const diversi = new Set<string>();
   let scrittiMale = 0;

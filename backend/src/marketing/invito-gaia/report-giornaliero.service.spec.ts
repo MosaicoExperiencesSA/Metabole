@@ -36,7 +36,7 @@ describe('InvitoGaiaService.mandaReportGiornaliero', () => {
     const mail = { send: jest.fn().mockResolvedValue(true) };
     const config = { get: jest.fn((k: string) => ({ BACKOFFICE_URL: 'https://bo.x/' } as Record<string, string>)[k]) };
     const params = { getString: jest.fn(async (k: string, f: string) => (k === 'gaia_invito_report_destinatari' ? opz.destinatari ?? 'giusy@metabole.eu' : f)) };
-    const svc = new InvitoGaiaService(prisma as never, mail as never, {} as never, config as never, params as never, {} as never);
+    const svc = new InvitoGaiaService(prisma as never, mail as never, {} as never, config as never, params as never, {} as never, {} as never);
     return { svc, prisma, mail };
   }
 

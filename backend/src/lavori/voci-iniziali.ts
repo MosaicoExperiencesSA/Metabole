@@ -7654,12 +7654,13 @@ export const VOCI_INIZIALI: Voce[] = [
       'Al 6/11 il tetto è 300 al giorno, più i promemoria: 8750 inviti e 3911 promemoria in un mese, con 58.572 lead '
       + 'ancora in coda, tutte dallo storico importato. È lì che stanno gli indirizzi morti (Libero e Virgilio all\'8–10% '
       + 'di rimbalzi secondo Brevo). Con il 7,37% sono circa 900 rimbalzi al mese. Resa: 1,2% di clic, 0,8% di entrate. '
-      + 'Proposta: 100 al giorno dal pannello dell\'invito, finché la coda non è ripulita e il bounce non torna sotto il 2–3%.',
+      + 'Proposta: 100 al giorno dal pannello dell\'invito, finché la coda non è ripulita e il bounce non torna sotto il 2–3%.\n\n'
+      + 'Simone (6/11): scende a 150. Si spunta quando è salvato nel pannello.',
   },
 
   {
     chiave: 'invito-gaia-pulizia-coda',
-    fatta: false,
+    fatta: true,
     categoria: CODICE,
     ordine: 1,
     nata: '2026-11-06T16:00',
@@ -7672,7 +7673,24 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'Misurato il 6/11: 58.572 in coda, 58.320 indirizzi diversi scritti bene, 251 scritti male, 648 su domini senza '
       + 'posta (gmail.con, gmal.com, libeto.it…). Restano 57.672 con un dominio buono: il controllo MX ne toglie appena '
       + 'l\'1,5%. Il 6% di rimbalzi sono caselle chiuse su domini veri (Libero, Gmail, Hotmail) e lì serve un servizio di '
-      + 'verifica a pagamento. Passano l\'MX anche refusi con un dominio vero dietro: gimail.com (142), gmail.it (175).',
+      + 'verifica a pagamento. Passano l\'MX anche refusi con un dominio vero dietro: gimail.com (142), gmail.it (175).\n\n'
+      + '✅ **FATTO (6/11)**: filtro attivo nel giro dell\'invito (`invito-gaia/posta-del-dominio.ts`). Un dominio che non '
+      + 'esiste o non riceve posta esce dalla coda con «saltato:dominio»; nel dubbio (DNS lento) si manda. Le caselle chiuse '
+      + 'su domini veri restano: quelle sono nella voce della verifica a pagamento.',
+  },
+
+  {
+    chiave: 'invito-gaia-verifica-a-pagamento',
+    fatta: false,
+    categoria: SIMONE,
+    ordine: 4,
+    nata: '2026-11-06T18:00',
+    titolo: '💶 Decidere se far verificare a pagamento le ~57.000 caselle della coda dell\'invito',
+    dettaglio:
+      'Il 6% di rimbalzi sono caselle chiuse su domini veri (Libero, Gmail, Hotmail): al ritmo di oggi circa 3.500 rimbalzi '
+      + 'ancora da venire. Solo un servizio di verifica li trova prima (Bouncer è europeo, serve l\'accordo GDPR). '
+      + 'Si chiede il preventivo, si esporta la coda, e il risultato si importa togliendo i non validi: quella parte di codice '
+      + 'si scrive quando c\'è il file.',
   },
 
   {
