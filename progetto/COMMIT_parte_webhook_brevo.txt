@@ -1,0 +1,14 @@
+Webhook Brevo: esclude anche invalid_email + diag:opt-out per vedere se arriva
+
+Consegnabilità Brevo 7/10–5/11: punteggio 52, bounce 7,37% (consigliato sotto 1%). Causa: l invito a Gaia (300 al giorno più i promemoria) pesca sempre più indietro nello storico importato.
+
+- marketing/eventi-brevo.ts (nuovo, modulo puro): decide quali eventi escludono un indirizzo. Aggiunto invalid_email, che mancava; il nome si normalizza (hard_bounce = hardBounce). soft_bounce e deferred restano fuori apposta.
+- marketing.service.ts: handleBrevoWebhook usa il modulo.
+- Prove: eventi-brevo.spec.ts e brevo-webhook.spec.ts (guarda cosa arriva a upsert). Mutazioni verificate: tutte e due mordono.
+- prisma/diag-opt-out.ts + script npm diag:opt-out (legge e basta, shell di Render): dice se il webhook transazionale arriva, quanti invitati sono poi rimbalzati, i domini della coda, e quanti indirizzi della coda sono diversi, scritti bene e su un dominio che riceve posta (controllo MX).
+- Pagina Lavori: una voce chiusa, quattro aperte (webhook transazionale, tetto giù, pulizia coda, DMARC).
+
+jest src/marketing 154 verdi, src/lavori 74 verdi, tsc del build pulito.
+
+File: backend/src/marketing/eventi-brevo.ts, backend/src/marketing/eventi-brevo.spec.ts, backend/src/marketing/brevo-webhook.spec.ts, backend/src/marketing/marketing.service.ts, backend/prisma/diag-opt-out.ts, backend/package.json, backend/src/lavori/voci-iniziali.ts, progetto/REGISTRO.md
+Niente migrazioni, niente variabili nuove, niente dipendenze.

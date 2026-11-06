@@ -7609,4 +7609,76 @@ export const VOCI_INIZIALI: Voce[] = [
       + '✅ **FATTO (5/11)**: lanciato in produzione, 127 lead accettati con cliente registrata, 0 storti. Jessica era l\'unica, già sistemata a mano.',
   },
 
+  {
+    chiave: 'brevo-webhook-invalid-email',
+    fatta: true,
+    categoria: CODICE,
+    ordine: 1,
+    nata: '2026-11-06T16:00',
+    titolo: '📮 Il webhook di Brevo esclude anche `invalid_email` (e capisce i nomi scritti all\'altro modo)',
+    dettaglio:
+      'Pannello Consegnabilità di Brevo (7/10–5/11): punteggio 52, bounce 7,37% contro un consigliato sotto l\'1%. '
+      + 'Il webhook non conosceva `invalid_email`, l\'evento degli indirizzi scritti male o con dominio inesistente: '
+      + 'restavano in coda all\'invito a Gaia. Ora la decisione sta in `marketing/eventi-brevo.ts`; '
+      + '`soft_bounce` resta fuori apposta (casella piena = indirizzo vivo).\n\n'
+      + '✅ **FATTO (6/11)**. Dettaglio nel REGISTRO.',
+  },
+
+  {
+    chiave: 'brevo-webhook-transazionale-collegato',
+    fatta: false,
+    categoria: SIMONE,
+    ordine: 1,
+    nata: '2026-11-06T16:00',
+    titolo: '🔎 Lanciare `npm run diag:opt-out` e, se serve, collegare il webhook TRANSAZIONALE di Brevo',
+    dettaglio:
+      'L\'invito a Gaia parte come email transazionale, e su Brevo il webhook delle transazionali si configura a parte da '
+      + 'quello delle campagne. Lo script (shell di Render, legge e basta) mette a confronto gli inviti degli ultimi 30 giorni '
+      + 'con le righe di `marketing_opt_out`: zero `hard_bounce` su centinaia di inviti = il webhook non arriva.\n\n'
+      + 'In quel caso: Brevo → Transazionale → Impostazioni → Webhook, indirizzo '
+      + '`https://metabole-backend.onrender.com/api/v1/marketing/webhook/brevo?token=<BREVO_WEBHOOK_SECRET>`, eventi '
+      + 'hard_bounce, invalid_email, blocked, spam, unsubscribed. ⚠️ Senza `BREVO_WEBHOOK_SECRET` su Render il webhook '
+      + 'risponde 401 a tutto.',
+  },
+
+  {
+    chiave: 'invito-gaia-tetto-giu',
+    fatta: false,
+    categoria: SIMONE,
+    ordine: 2,
+    nata: '2026-11-06T16:00',
+    titolo: '📉 Abbassare il tetto giornaliero dell\'invito a Gaia finché il bounce non scende',
+    dettaglio:
+      'Al 6/11 il tetto è 300 al giorno, più i promemoria: 8750 inviti e 3911 promemoria in un mese, con 58.572 lead '
+      + 'ancora in coda, tutte dallo storico importato. È lì che stanno gli indirizzi morti (Libero e Virgilio all\'8–10% '
+      + 'di rimbalzi secondo Brevo). Con il 7,37% sono circa 900 rimbalzi al mese. Resa: 1,2% di clic, 0,8% di entrate. '
+      + 'Proposta: 100 al giorno dal pannello dell\'invito, finché la coda non è ripulita e il bounce non torna sotto il 2–3%.',
+  },
+
+  {
+    chiave: 'invito-gaia-pulizia-coda',
+    fatta: false,
+    categoria: CODICE,
+    ordine: 1,
+    nata: '2026-11-06T16:00',
+    titolo: '🧹 Togliere dalla coda dell\'invito gli indirizzi morti PRIMA che partano',
+    dettaglio:
+      'Il webhook impara solo dopo il rimbalzo: ogni indirizzo morto rimbalza comunque una volta, e con 100 indirizzi '
+      + 'vecchi nuovi al giorno il bounce si rigenera ogni giorno. Serve un controllo prima dell\'invio: almeno che il '
+      + 'dominio riceva posta (record MX), meglio un servizio di verifica degli indirizzi sulla coda che resta. '
+      + '`diag:opt-out` dice quanti sono in coda e su quali domini.',
+  },
+
+  {
+    chiave: 'dmarc-metabole-eu',
+    fatta: false,
+    categoria: SIMONE,
+    ordine: 3,
+    nata: '2026-11-06T16:00',
+    titolo: '🔐 Autenticazione del dominio a 60 su Brevo: controllare il DMARC di metabole.eu',
+    dettaglio:
+      'Brevo dà 60, cioè il minimo indispensabile. Probabilmente manca il record DMARC o è a `p=none`. '
+      + 'Da guardare nei DNS (SiteGround) e nella pagina Mittenti e domini di Brevo, che dice quale dei controlli manca.',
+  },
+
 ];

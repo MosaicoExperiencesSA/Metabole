@@ -16,6 +16,7 @@ import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { deriveSegment, prefsToken, verifyPrefsToken } from '../common/funnel-segment';
 import { STAGE_DA_CLIENTE } from '../commerce/sospensione-in-pipeline';
+import { motivoOptOutBrevo } from './eventi-brevo';
 
 export type SegmentFilters = {
   stages?: string[];
@@ -677,14 +678,13 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
     const secret = this.config.get<string>('BREVO_WEBHOOK_SECRET');
     if (!secret || token !== secret) throw new UnauthorizedException('Token webhook non valido.');
     const events = Array.isArray(body) ? body : [body];
-    const OPT_OUT = new Set(['unsubscribed', 'spam', 'hard_bounce', 'blocked', 'blacklisted', 'complaint']);
     let optedOut = 0;
     for (const ev of events) {
       const e = (ev ?? {}) as Record<string, unknown>;
-      const event = String(e.event ?? '').toLowerCase();
+      const motivo = motivoOptOutBrevo(e.event);
       const email = String(e.email ?? '').trim().toLowerCase();
-      if (!email || !OPT_OUT.has(event)) continue;
-      await this.prisma.marketingOptOut.upsert({ where: { email }, create: { email, reason: event, source: 'brevo' }, update: { reason: event } });
+      if (!email || !motivo) continue;
+      await this.prisma.marketingOptOut.upsert({ where: { email }, create: { email, reason: motivo, source: 'brevo' }, update: { reason: motivo } });
       optedOut++;
     }
     return { ok: true, processed: events.length, optedOut };
