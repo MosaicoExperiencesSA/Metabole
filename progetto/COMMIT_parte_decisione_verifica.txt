@@ -1,0 +1,6 @@
+Invito a Gaia: decisione, niente verifica a pagamento
+
+Simone (6/11): la verifica a pagamento delle caselle in coda non si fa. Restano il filtro sul dominio e il tetto a 150; se il bounce peggiora si spegne l invio dal pannello. Controllo con npm run diag:opt-out.
+
+File: backend/src/lavori/voci-iniziali.ts, progetto/REGISTRO.md
+Niente migrazioni, niente variabili nuove, niente dipendenze.

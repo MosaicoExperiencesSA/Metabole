@@ -7681,7 +7681,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'invito-gaia-verifica-a-pagamento',
-    fatta: false,
+    fatta: true,
     categoria: SIMONE,
     ordine: 4,
     nata: '2026-11-06T18:00',
@@ -7690,7 +7690,9 @@ export const VOCI_INIZIALI: Voce[] = [
       'Il 6% di rimbalzi sono caselle chiuse su domini veri (Libero, Gmail, Hotmail): al ritmo di oggi circa 3.500 rimbalzi '
       + 'ancora da venire. Solo un servizio di verifica li trova prima (Bouncer è europeo, serve l\'accordo GDPR). '
       + 'Si chiede il preventivo, si esporta la coda, e il risultato si importa togliendo i non validi: quella parte di codice '
-      + 'si scrive quando c\'è il file.',
+      + 'si scrive quando c\'è il file.\n\n'
+      + '✅ **DECISO (6/11, Simone)**: la verifica a pagamento non si fa. Se la situazione peggiora, si spegne l\'invio '
+      + '(«Invio attivo» nel pannello). Il controllo si fa con `npm run diag:opt-out`.',
   },
 
   {
